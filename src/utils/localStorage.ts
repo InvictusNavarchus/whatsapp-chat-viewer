@@ -5,6 +5,10 @@ const STORAGE_KEYS = {
   ACTIVE_CHAT: 'whatsapp-viewer-active-chat'
 };
 
+/**
+ * @deprecated Use bookmarkStorage.ts for new bookmark operations
+ * Save bookmarks to localStorage (legacy function for migration only)
+ */
 export const saveBookmarks = (bookmarks: BookmarkedMessage[]): void => {
   try {
     localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks));
@@ -13,6 +17,10 @@ export const saveBookmarks = (bookmarks: BookmarkedMessage[]): void => {
   }
 };
 
+/**
+ * @deprecated Use bookmarkStorage.ts for new bookmark operations
+ * Load bookmarks from localStorage (legacy function for migration only)
+ */
 export const loadBookmarks = (): BookmarkedMessage[] => {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
@@ -20,6 +28,18 @@ export const loadBookmarks = (): BookmarkedMessage[] => {
   } catch (error) {
     console.error('Failed to load bookmarks:', error);
     return [];
+  }
+};
+
+/**
+ * Clear legacy bookmark data from localStorage
+ * Used after successful migration to IndexedDB
+ */
+export const clearLegacyBookmarks = (): void => {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.BOOKMARKS);
+  } catch (error) {
+    console.error('Failed to clear legacy bookmarks:', error);
   }
 };
 

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
 import { parseWhatsAppChat, generateChatName } from '@/utils/chatParser';
-import { saveBookmarks, loadBookmarks, saveActiveChat, loadActiveChat } from '@/utils/localStorage';
+import { saveActiveChat, loadActiveChat } from '@/utils/localStorage';
 import { saveChatsToIndexedDB, loadChatsFromIndexedDB, saveChatToIndexedDB } from '@/utils/indexedDb';
 import { migrateChatsFromLocalStorage, hasLegacyChatData } from '@/utils/migration';
+import { useBookmarks } from '@/hooks/useBookmarks';
 import { ChatUpload } from './ChatUpload';
 import { ChatList } from './ChatList';
 import { ChatViewer } from './ChatViewer';
@@ -19,7 +20,6 @@ type ViewState = 'list' | 'chat' | 'bookmarks' | 'upload';
 
 export const WhatsAppViewer = () => {
   const [chats, setChats] = useState<Chat[]>([]);
-  const [bookmarks, setBookmarks] = useState<BookmarkedMessage[]>([]);
   const [currentView, setCurrentView] = useState<ViewState>('list');
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [scrollToMessage, setScrollToMessage] = useState<string | null>(null);
@@ -27,6 +27,16 @@ export const WhatsAppViewer = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // Use the new efficient bookmark system
+  const { 
+    bookmarks, 
+    addBookmark, 
+    deleteBookmark, 
+    toggleBookmark, 
+    isBookmarked: isMessageBookmarked,
+    error: bookmarkError 
+  } = useBookmarks();
 
   // Load data from storage on mount
   useEffect(() => {
@@ -46,11 +56,9 @@ export const WhatsAppViewer = () => {
       }
       
       const savedChats = await loadChatsFromIndexedDB();
-      const savedBookmarks = loadBookmarks();
       const savedActiveChat = loadActiveChat();
       
       setChats(savedChats);
-      setBookmarks(savedBookmarks);
       
       if (savedChats.length === 0) {
         setCurrentView('upload');
@@ -80,12 +88,47 @@ export const WhatsAppViewer = () => {
   }, [chats, isInitialLoading, toast]);
 
   useEffect(() => {
-    saveBookmarks(bookmarks);
-  }, [bookmarks]);
-
-  useEffect(() => {
     saveActiveChat(activeChat);
   }, [activeChat]);
+
+  // Sync chat messages with bookmark status when bookmarks change
+  useEffect(() => {
+    if (chats.length === 0) return;
+    
+    const syncBookmarkStatus = () => {
+      const updatedChats = chats.map(chat => ({
+        ...chat,
+        messages: chat.messages.map(msg => ({
+          ...msg,
+          isBookmarked: isMessageBookmarked(msg.id)
+        }))
+      }));
+      
+      // Only update if there are actual changes to prevent infinite loops
+      const hasChanges = updatedChats.some((updatedChat, index) => 
+        updatedChat.messages.some((msg, msgIndex) => 
+          msg.isBookmarked !== chats[index].messages[msgIndex].isBookmarked
+        )
+      );
+      
+      if (hasChanges) {
+        setChats(updatedChats);
+      }
+    };
+    
+    syncBookmarkStatus();
+  }, [bookmarks, chats, isMessageBookmarked]);
+
+  // Show bookmark error toast if any
+  useEffect(() => {
+    if (bookmarkError) {
+      toast({
+        title: "Bookmark Error",
+        description: bookmarkError,
+        variant: "destructive"
+      });
+    }
+  }, [bookmarkError, toast]);
 
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
@@ -158,7 +201,10 @@ export const WhatsAppViewer = () => {
     const currentChat = chats.find(c => c.id === activeChat);
     if (!currentChat) return;
 
-    // Update the message in the chat
+    const message = currentChat.messages.find(m => m.id === messageId);
+    if (!message) return;
+
+    // Update the message in the chat (for UI consistency)
     const updatedChats = chats.map(chat => {
       if (chat.id !== activeChat) return chat;
       
@@ -173,23 +219,16 @@ export const WhatsAppViewer = () => {
 
     setChats(updatedChats);
 
-    // Update bookmarks
-    const message = currentChat.messages.find(m => m.id === messageId);
-    if (!message) return;
+    // Create the bookmark object
+    const bookmark: BookmarkedMessage = {
+      ...message,
+      isBookmarked: !message.isBookmarked,
+      chatId: currentChat.id,
+      chatName: currentChat.name
+    };
 
-    if (message.isBookmarked) {
-      // Remove bookmark
-      setBookmarks(prev => prev.filter(b => b.id !== messageId));
-    } else {
-      // Add bookmark
-      const bookmark: BookmarkedMessage = {
-        ...message,
-        isBookmarked: true,
-        chatId: currentChat.id,
-        chatName: currentChat.name
-      };
-      setBookmarks(prev => [bookmark, ...prev]);
-    }
+    // Use the efficient bookmark toggle
+    await toggleBookmark(bookmark);
   };
 
   const handleJumpToMessage = (chatId: string, messageId: string) => {
@@ -199,7 +238,8 @@ export const WhatsAppViewer = () => {
   };
 
   const handleRemoveBookmark = async (messageId: string) => {
-    setBookmarks(prev => prev.filter(b => b.id !== messageId));
+    // Remove the bookmark using the efficient system
+    await deleteBookmark(messageId);
     
     // Also update the message in the chat
     const updatedChats = chats.map(chat => ({
