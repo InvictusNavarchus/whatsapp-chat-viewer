@@ -7,6 +7,8 @@ import { ChatUpload } from './ChatUpload';
 import { ChatList } from './ChatList';
 import { ChatViewer } from './ChatViewer';
 import { BookmarkList } from './BookmarkList';
+import { ChatListSkeleton } from './ChatListSkeleton';
+import { ChatViewerSkeleton } from './ChatViewerSkeleton';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -20,23 +22,33 @@ export const WhatsAppViewer = () => {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [scrollToMessage, setScrollToMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const { toast } = useToast();
 
   // Load data from localStorage on mount
   useEffect(() => {
-    const savedChats = loadChats();
-    const savedBookmarks = loadBookmarks();
-    const savedActiveChat = loadActiveChat();
+    const loadInitialData = async () => {
+      // Simulate loading time to show skeleton
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const savedChats = loadChats();
+      const savedBookmarks = loadBookmarks();
+      const savedActiveChat = loadActiveChat();
+      
+      setChats(savedChats);
+      setBookmarks(savedBookmarks);
+      
+      if (savedChats.length === 0) {
+        setCurrentView('upload');
+      } else if (savedActiveChat && savedChats.find(c => c.id === savedActiveChat)) {
+        setActiveChat(savedActiveChat);
+        setCurrentView('chat');
+      }
+      
+      setIsInitialLoading(false);
+    };
     
-    setChats(savedChats);
-    setBookmarks(savedBookmarks);
-    
-    if (savedChats.length === 0) {
-      setCurrentView('upload');
-    } else if (savedActiveChat && savedChats.find(c => c.id === savedActiveChat)) {
-      setActiveChat(savedActiveChat);
-      setCurrentView('chat');
-    }
+    loadInitialData();
   }, []);
 
   // Save to localStorage whenever data changes
@@ -160,6 +172,51 @@ export const WhatsAppViewer = () => {
   };
 
   const currentChat = chats.find(c => c.id === activeChat);
+
+  if (isInitialLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto">
+          {/* Desktop Loading */}
+          <div className="hidden md:flex h-screen">
+            <div className="w-80 border-r bg-card flex flex-col">
+              <div className="p-4 border-b">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-xl font-bold">WhatsApp Viewer</h1>
+                  <Button size="sm" disabled className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Chat
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <ChatListSkeleton />
+              </div>
+            </div>
+            <div className="flex-1">
+              <ChatViewerSkeleton />
+            </div>
+          </div>
+          
+          {/* Mobile Loading */}
+          <div className="md:hidden h-screen">
+            <div className="p-4 border-b bg-card">
+              <div className="flex items-center justify-between">
+                <h1 className="text-xl font-bold">WhatsApp Viewer</h1>
+                <Button size="sm" disabled className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <ChatListSkeleton />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
