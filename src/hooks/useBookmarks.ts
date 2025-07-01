@@ -5,8 +5,8 @@ import {
   saveBookmark, 
   removeBookmark, 
   isMessageBookmarked,
-  saveBookmarksBatch
-} from '@/utils/bookmarkStorage';
+  getBookmarkStatus
+} from '@/utils/normalizedDb';
 import { 
   loadBookmarks as loadLegacyBookmarks,
   clearLegacyBookmarks 
@@ -43,13 +43,18 @@ export const useBookmarks = () => {
           const legacyBookmarks = loadLegacyBookmarks();
           if (legacyBookmarks.length > 0) {
             // Migrate legacy bookmarks to IndexedDB
-            await saveBookmarksBatch(legacyBookmarks);
-            setBookmarks(legacyBookmarks);
+            for (const bookmark of legacyBookmarks) {
+              await saveBookmark(bookmark.id, bookmark.chatId);
+            }
+            
+            // Reload after migration
+            const migratedBookmarks = await loadBookmarks();
+            setBookmarks(migratedBookmarks);
             
             // Clear legacy data after successful migration
             clearLegacyBookmarks();
             
-            console.log('Migrated', legacyBookmarks.length, 'bookmarks from localStorage to IndexedDB');
+            console.log('Migrated', legacyBookmarks.length, 'bookmarks from localStorage to normalized IndexedDB');
           } else {
             setBookmarks([]);
           }
@@ -96,7 +101,7 @@ export const useBookmarks = () => {
       });
       
       // Save to IndexedDB
-      await saveBookmark(bookmark);
+      await saveBookmark(bookmark.id, bookmark.chatId);
     } catch (err) {
       console.error('Failed to add bookmark:', err);
       setError('Failed to add bookmark');

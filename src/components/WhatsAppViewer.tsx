@@ -3,9 +3,8 @@ import { Plus } from 'lucide-react';
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
 import { parseWhatsAppChat, generateChatName } from '@/utils/chatParser';
 import { saveActiveChat, loadActiveChat } from '@/utils/localStorage';
-import { saveChatsToIndexedDB, loadChatsFromIndexedDB, saveChatToIndexedDB } from '@/utils/indexedDb';
-import { migrateChatsFromLocalStorage, hasLegacyChatData } from '@/utils/migration';
 import { useBookmarks } from '@/hooks/useBookmarks';
+import { useChats } from '@/hooks/useChats';
 import { ChatUpload } from './ChatUpload';
 import { ChatList } from './ChatList';
 import { ChatViewer } from './ChatViewer';
@@ -19,107 +18,81 @@ import { cn } from '@/lib/utils';
 type ViewState = 'list' | 'chat' | 'bookmarks' | 'upload';
 
 export const WhatsAppViewer = () => {
-  const [chats, setChats] = useState<Chat[]>([]);
   const [currentView, setCurrentView] = useState<ViewState>('list');
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [scrollToMessage, setScrollToMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const { toast } = useToast();
   
-  // Use the new efficient bookmark system
+  // Use the new efficient database systems
+  const { 
+    chatList,
+    isLoading: isLoadingChats,
+    isLoadingChat,
+    migrationStatus,
+    error: chatError,
+    loadChatData,
+    addChat,
+    getCachedChat,
+    clearError: clearChatError
+  } = useChats();
+  
   const { 
     bookmarks, 
     addBookmark, 
     deleteBookmark, 
     toggleBookmark, 
     isBookmarked: isMessageBookmarked,
-    error: bookmarkError 
+    error: bookmarkError,
+    clearError: clearBookmarkError
   } = useBookmarks();
 
-  // Load data from storage on mount
+  // Load data from storage on mount and handle migration
   useEffect(() => {
     const loadInitialData = async () => {
-      // Simulate loading time to show skeleton
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Check for legacy data and migrate if needed
-      if (hasLegacyChatData()) {
-        const migrationSuccess = await migrateChatsFromLocalStorage();
-        if (migrationSuccess) {
-          toast({
-            title: "Data Migration Complete",
-            description: "Your chat data has been migrated to improved storage."
-          });
-        }
-      }
-      
-      const savedChats = await loadChatsFromIndexedDB();
       const savedActiveChat = loadActiveChat();
       
-      setChats(savedChats);
-      
-      if (savedChats.length === 0) {
+      if (chatList.length === 0) {
         setCurrentView('upload');
-      } else if (savedActiveChat && savedChats.find(c => c.id === savedActiveChat)) {
+      } else if (savedActiveChat && chatList.find(c => c.id === savedActiveChat)) {
         setActiveChat(savedActiveChat);
         setCurrentView('chat');
       }
-      
-      setIsInitialLoading(false);
     };
     
-    loadInitialData();
-  }, [toast]);
+    if (!isLoadingChats && !migrationStatus.isRunning) {
+      loadInitialData();
+    }
+  }, [chatList, isLoadingChats, migrationStatus.isRunning]);
 
-  // Save to storage whenever data changes
+  // Show migration status
   useEffect(() => {
-    if (!isInitialLoading) {
-      saveChatsToIndexedDB(chats).catch(error => {
-        console.error('Failed to save chats to IndexedDB:', error);
-        toast({
-          title: "Storage Error",
-          description: "Failed to save chats. Changes may not persist.",
-          variant: "destructive"
-        });
+    if (migrationStatus.isRunning) {
+      toast({
+        title: "Migrating Data",
+        description: "Upgrading to improved storage format...",
+      });
+    } else if (migrationStatus.isComplete && migrationStatus.error) {
+      toast({
+        title: "Migration Error",
+        description: migrationStatus.error,
+        variant: "destructive"
       });
     }
-  }, [chats, isInitialLoading, toast]);
+  }, [migrationStatus, toast]);
 
+  // Show error toasts
   useEffect(() => {
-    saveActiveChat(activeChat);
-  }, [activeChat]);
+    if (chatError) {
+      toast({
+        title: "Chat Error", 
+        description: chatError,
+        variant: "destructive"
+      });
+    }
+  }, [chatError, toast]);
 
-  // Sync chat messages with bookmark status when bookmarks change
-  useEffect(() => {
-    if (chats.length === 0) return;
-    
-    const syncBookmarkStatus = () => {
-      const updatedChats = chats.map(chat => ({
-        ...chat,
-        messages: chat.messages.map(msg => ({
-          ...msg,
-          isBookmarked: isMessageBookmarked(msg.id)
-        }))
-      }));
-      
-      // Only update if there are actual changes to prevent infinite loops
-      const hasChanges = updatedChats.some((updatedChat, index) => 
-        updatedChat.messages.some((msg, msgIndex) => 
-          msg.isBookmarked !== chats[index].messages[msgIndex].isBookmarked
-        )
-      );
-      
-      if (hasChanges) {
-        setChats(updatedChats);
-      }
-    };
-    
-    syncBookmarkStatus();
-  }, [bookmarks, chats, isMessageBookmarked]);
-
-  // Show bookmark error toast if any
   useEffect(() => {
     if (bookmarkError) {
       toast({
@@ -155,7 +128,7 @@ export const WhatsAppViewer = () => {
         lastMessageTime: messages[messages.length - 1]?.time || 'Unknown'
       };
 
-      setChats(prev => [newChat, ...prev]);
+      await addChat(newChat);
       setActiveChat(newChat.id);
       setCurrentView('chat');
       
@@ -184,40 +157,23 @@ export const WhatsAppViewer = () => {
     setLoadingChatId(chatId);
     setScrollToMessage(null);
     
-    // Add a small delay to ensure loading state is visible
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // Load chat data if not already cached
+    await loadChatData(chatId);
     
     setActiveChat(chatId);
     setCurrentView('chat');
     saveActiveChat(chatId);
     
-    // Clear loading state after allowing time for rendering
-    setTimeout(() => {
-      setLoadingChatId(null);
-    }, 800);
+    // Clear loading state
+    setLoadingChatId(null);
   };
 
   const handleToggleBookmark = async (messageId: string) => {
-    const currentChat = chats.find(c => c.id === activeChat);
-    if (!currentChat) return;
+    const currentChat = getCachedChat(activeChat!);
+    if (!currentChat || !activeChat) return;
 
     const message = currentChat.messages.find(m => m.id === messageId);
     if (!message) return;
-
-    // Update the message in the chat (for UI consistency)
-    const updatedChats = chats.map(chat => {
-      if (chat.id !== activeChat) return chat;
-      
-      return {
-        ...chat,
-        messages: chat.messages.map(msg => {
-          if (msg.id !== messageId) return msg;
-          return { ...msg, isBookmarked: !msg.isBookmarked };
-        })
-      };
-    });
-
-    setChats(updatedChats);
 
     // Create the bookmark object
     const bookmark: BookmarkedMessage = {
@@ -231,7 +187,10 @@ export const WhatsAppViewer = () => {
     await toggleBookmark(bookmark);
   };
 
-  const handleJumpToMessage = (chatId: string, messageId: string) => {
+  const handleJumpToMessage = async (chatId: string, messageId: string) => {
+    // Load the chat if not cached
+    await loadChatData(chatId);
+    
     setActiveChat(chatId);
     setScrollToMessage(messageId);
     setCurrentView('chat');
@@ -240,22 +199,11 @@ export const WhatsAppViewer = () => {
   const handleRemoveBookmark = async (messageId: string) => {
     // Remove the bookmark using the efficient system
     await deleteBookmark(messageId);
-    
-    // Also update the message in the chat
-    const updatedChats = chats.map(chat => ({
-      ...chat,
-      messages: chat.messages.map(msg => {
-        if (msg.id !== messageId) return msg;
-        return { ...msg, isBookmarked: false };
-      })
-    }));
-    
-    setChats(updatedChats);
   };
 
-  const currentChat = chats.find(c => c.id === activeChat);
+  const currentChat = activeChat ? getCachedChat(activeChat) : null;
 
-  if (isInitialLoading) {
+  if (isLoadingChats || migrationStatus.isRunning) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-6xl mx-auto">
@@ -324,7 +272,13 @@ export const WhatsAppViewer = () => {
             
             <div className="flex-1 overflow-y-auto p-4">
               <ChatList
-                chats={chats}
+                chats={chatList.map(chat => ({
+                  id: chat.id,
+                  name: chat.name,
+                  messages: [], // We don't need full messages for the list
+                  createdAt: chat.createdAt,
+                  lastMessageTime: chat.lastMessageTime
+                }))}
                 activeChat={activeChat}
                 onSelectChat={handleSelectChat}
                 onViewBookmarks={() => setCurrentView('bookmarks')}
@@ -400,7 +354,13 @@ export const WhatsAppViewer = () => {
               
               <div className="flex-1 overflow-y-auto p-4">
                 <ChatList
-                  chats={chats}
+                  chats={chatList.map(chat => ({
+                    id: chat.id,
+                    name: chat.name,
+                    messages: [], // We don't need full messages for the list
+                    createdAt: chat.createdAt,
+                    lastMessageTime: chat.lastMessageTime
+                  }))}
                   activeChat={activeChat}
                   onSelectChat={handleSelectChat}
                   onViewBookmarks={() => setCurrentView('bookmarks')}

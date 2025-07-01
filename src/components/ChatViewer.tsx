@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { Chat, Message } from '@/types/chat';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
+import { getBookmarkStatus } from '@/utils/normalizedDb';
 import { cn } from '@/lib/utils';
 
 interface ChatViewerProps {
@@ -22,6 +23,7 @@ export const ChatViewer = ({
 }: ChatViewerProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [bookmarkStatuses, setBookmarkStatuses] = useState<Record<string, boolean>>({});
 
   // Auto-detect current user based on most frequent sender
   const detectedCurrentUser = currentUser || (() => {
@@ -37,6 +39,29 @@ export const ChatViewer = ({
     
     return sortedSenders[0]?.[0] || '';
   })();
+
+  // Handle bookmark toggle with status refresh
+  const handleToggleBookmark = async (messageId: string) => {
+    await onToggleBookmark(messageId);
+    
+    // Refresh bookmark status for this message
+    const status = await getBookmarkStatus([messageId]);
+    setBookmarkStatuses(prev => ({
+      ...prev,
+      ...status
+    }));
+  };
+
+  // Load bookmark statuses for all messages
+  useEffect(() => {
+    const loadBookmarkStatuses = async () => {
+      const messageIds = chat.messages.map(m => m.id);
+      const statuses = await getBookmarkStatus(messageIds);
+      setBookmarkStatuses(statuses);
+    };
+    
+    loadBookmarkStatuses();
+  }, [chat.messages]);
 
   useEffect(() => {
     if (scrollToMessage) {
@@ -96,9 +121,12 @@ export const ChatViewer = ({
             )}
           >
             <ChatBubble
-              message={message}
+              message={{
+                ...message,
+                isBookmarked: bookmarkStatuses[message.id] || false
+              }}
               isCurrentUser={message.sender === detectedCurrentUser}
-              onToggleBookmark={onToggleBookmark}
+              onToggleBookmark={handleToggleBookmark}
             />
           </div>
         ))}
