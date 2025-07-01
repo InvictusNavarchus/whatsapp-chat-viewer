@@ -1,4 +1,4 @@
-import { MessageCircle, Clock, Bookmark } from 'lucide-react';
+import { MessageCircle, Clock, Bookmark, Loader2 } from 'lucide-react';
 import { Chat } from '@/types/chat';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -10,6 +10,7 @@ interface ChatListProps {
   onSelectChat: (chatId: string) => void;
   onViewBookmarks: () => void;
   bookmarkCount: number;
+  loadingChatId?: string | null;
 }
 
 export const ChatList = ({ 
@@ -17,7 +18,8 @@ export const ChatList = ({
   activeChat, 
   onSelectChat, 
   onViewBookmarks,
-  bookmarkCount 
+  bookmarkCount,
+  loadingChatId 
 }: ChatListProps) => {
   return (
     <div className="space-y-4">
@@ -42,34 +44,47 @@ export const ChatList = ({
             <p className="text-xs text-muted-foreground">Upload your first WhatsApp chat to get started</p>
           </Card>
         ) : (
-          chats.map((chat) => (
-            <Card 
-              key={chat.id}
-              className={cn(
-                "p-4 cursor-pointer transition-all duration-200 hover:shadow-md border",
-                activeChat === chat.id && "border-primary bg-accent"
-              )}
-              onClick={() => onSelectChat(chat.id)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{chat.name}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {chat.messages.length} messages
-                  </p>
+          chats.map((chat) => {
+            const isLoading = loadingChatId === chat.id;
+            return (
+              <Card 
+                key={chat.id}
+                className={cn(
+                  "p-4 cursor-pointer transition-all duration-200 hover:shadow-md border",
+                  activeChat === chat.id && "border-primary bg-accent",
+                  isLoading && "opacity-75 pointer-events-none"
+                )}
+                onClick={() => {
+                  if (!isLoading) {
+                    onSelectChat(chat.id);
+                  }
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium truncate">{chat.name}</h3>
+                      {isLoading && (
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {isLoading ? 'Loading chat...' : `${chat.messages.length} messages`}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    {chat.lastMessageTime}
+                  </div>
                 </div>
                 
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {chat.lastMessageTime}
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Added {chat.createdAt.toLocaleDateString()}
                 </div>
-              </div>
-              
-              <div className="mt-2 text-xs text-muted-foreground">
-                Added {chat.createdAt.toLocaleDateString()}
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </div>
     </div>

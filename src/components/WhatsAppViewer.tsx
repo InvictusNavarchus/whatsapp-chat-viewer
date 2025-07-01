@@ -25,6 +25,7 @@ export const WhatsAppViewer = () => {
   const [scrollToMessage, setScrollToMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Load data from storage on mount
@@ -132,10 +133,25 @@ export const WhatsAppViewer = () => {
     }
   };
 
-  const handleSelectChat = (chatId: string) => {
-    setActiveChat(chatId);
+  /**
+   * Handles chat selection with loading state feedback
+   * @param chatId - The ID of the chat to select
+   */
+  const handleSelectChat = async (chatId: string) => {
+    setLoadingChatId(chatId);
     setScrollToMessage(null);
+    
+    // Add a small delay to ensure loading state is visible
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    setActiveChat(chatId);
     setCurrentView('chat');
+    saveActiveChat(chatId);
+    
+    // Clear loading state after allowing time for rendering
+    setTimeout(() => {
+      setLoadingChatId(null);
+    }, 800);
   };
 
   const handleToggleBookmark = async (messageId: string) => {
@@ -273,6 +289,7 @@ export const WhatsAppViewer = () => {
                 onSelectChat={handleSelectChat}
                 onViewBookmarks={() => setCurrentView('bookmarks')}
                 bookmarkCount={bookmarks.length}
+                loadingChatId={loadingChatId}
               />
             </div>
           </div>
@@ -290,7 +307,11 @@ export const WhatsAppViewer = () => {
               </div>
             )}
             
-            {currentView === 'chat' && currentChat && (
+            {currentView === 'chat' && loadingChatId && (
+              <ChatViewerSkeleton />
+            )}
+            
+            {currentView === 'chat' && currentChat && !loadingChatId && (
               <ChatViewer
                 chat={currentChat}
                 onToggleBookmark={handleToggleBookmark}
@@ -344,6 +365,7 @@ export const WhatsAppViewer = () => {
                   onSelectChat={handleSelectChat}
                   onViewBookmarks={() => setCurrentView('bookmarks')}
                   bookmarkCount={bookmarks.length}
+                  loadingChatId={loadingChatId}
                 />
               </div>
             </div>
@@ -369,7 +391,11 @@ export const WhatsAppViewer = () => {
             </div>
           )}
           
-          {currentView === 'chat' && currentChat && (
+          {currentView === 'chat' && loadingChatId && (
+            <ChatViewerSkeleton />
+          )}
+          
+          {currentView === 'chat' && currentChat && !loadingChatId && (
             <ChatViewer
               chat={currentChat}
               onToggleBookmark={handleToggleBookmark}
