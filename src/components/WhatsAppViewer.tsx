@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
 import { parseWhatsAppChat, generateChatName } from '@/utils/chatParser';
@@ -47,8 +47,20 @@ export const WhatsAppViewer = () => {
     error: bookmarkError,
     clearError: clearBookmarkError
   } = useBookmarks();
+  
+  // Memoize the chat list without messages for performance
+  const chatListForDisplay = useMemo(() => 
+    chatList.map(chat => ({
+      id: chat.id,
+      name: chat.name,
+      messages: [], // We don't need full messages for the list
+      createdAt: chat.createdAt,
+      lastMessageTime: chat.lastMessageTime
+    })),
+    [chatList]
+  );
 
-  // Load data from storage on mount and handle migration
+  // Migration status handling
   useEffect(() => {
     const loadInitialData = async () => {
       const savedActiveChat = loadActiveChat();
@@ -272,13 +284,7 @@ export const WhatsAppViewer = () => {
             
             <div className="flex-1 overflow-y-auto p-4">
               <ChatList
-                chats={chatList.map(chat => ({
-                  id: chat.id,
-                  name: chat.name,
-                  messages: [], // We don't need full messages for the list
-                  createdAt: chat.createdAt,
-                  lastMessageTime: chat.lastMessageTime
-                }))}
+                chats={chatListForDisplay}
                 activeChat={activeChat}
                 onSelectChat={handleSelectChat}
                 onViewBookmarks={() => setCurrentView('bookmarks')}
@@ -354,13 +360,7 @@ export const WhatsAppViewer = () => {
               
               <div className="flex-1 overflow-y-auto p-4">
                 <ChatList
-                  chats={chatList.map(chat => ({
-                    id: chat.id,
-                    name: chat.name,
-                    messages: [], // We don't need full messages for the list
-                    createdAt: chat.createdAt,
-                    lastMessageTime: chat.lastMessageTime
-                  }))}
+                  chats={chatListForDisplay}
                   activeChat={activeChat}
                   onSelectChat={handleSelectChat}
                   onViewBookmarks={() => setCurrentView('bookmarks')}

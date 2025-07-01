@@ -16,7 +16,7 @@ const isDatabaseValid = (): boolean => {
   // Check if the database is closed
   try {
     // Try to access the database - this will throw if closed
-    db.objectStoreNames;
+    void db.objectStoreNames;
     return true;
   } catch (error) {
     // Database is closed or invalid
@@ -234,15 +234,16 @@ export const saveBookmarksBatch = async (bookmarks: BookmarkedMessage[]): Promis
     const transaction = database.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     
-    await Promise.all(
-      bookmarks.map(bookmark => 
-        new Promise<void>((resolve, reject) => {
-          const request = store.put(bookmark);
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error);
-        })
-      )
-    );
+    // Use transaction oncomplete for better performance
+    await new Promise<void>((resolve, reject) => {
+      // Queue all put operations
+      bookmarks.forEach(bookmark => {
+        store.put(bookmark);
+      });
+      
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
   } catch (error) {
     console.error('Failed to save bookmarks batch:', error);
     throw error;

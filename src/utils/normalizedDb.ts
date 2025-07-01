@@ -43,7 +43,7 @@ interface BookmarkRecord {
 
 interface MetadataRecord {
   key: string;
-  value: any;
+  value: unknown;
   updatedAt: Date;
 }
 
@@ -156,7 +156,7 @@ export const saveChatMetadata = async (chat: Chat): Promise<void> => {
  */
 const parseTimestamp = (date: string, time: string): number => {
   // Basic validation for date format (DD/MM/YYYY or MM/DD/YYYY or YYYY-MM-DD)
-  const dateRegex = /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$|^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/;
+  const dateRegex = /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$|^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/;
   // Basic validation for time format (HH:MM or HH:MM:SS, with optional AM/PM)
   const timeRegex = /^\d{1,2}:\d{2}(:\d{2})?(\s?(AM|PM))?$/i;
   
@@ -282,7 +282,7 @@ export const loadAllChatMetadata = async (): Promise<ChatRecord[]> => {
     return new Promise<ChatRecord[]>((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => {
-        const results = request.result.map((chat: any) => ({
+        const results = request.result.map((chat: ChatRecord) => ({
           ...chat,
           createdAt: new Date(chat.createdAt)
         }));

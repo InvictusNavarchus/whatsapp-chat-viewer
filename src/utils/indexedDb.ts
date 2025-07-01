@@ -74,7 +74,7 @@ export const loadChatsFromIndexedDB = async (): Promise<Chat[]> => {
     const chats = await new Promise<Chat[]>((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => {
-        const results = request.result.map((chat: any) => ({
+        const results = request.result.map((chat: Chat & { createdAt: string | Date }) => ({
           ...chat,
           createdAt: new Date(chat.createdAt)
         }));
@@ -169,5 +169,38 @@ export const getChatFromIndexedDB = async (chatId: string): Promise<Chat | null>
   } catch (error) {
     console.error('Failed to get chat from IndexedDB:', error);
     return null;
+  }
+};
+
+/**
+ * Load chats from IndexedDB in batches for memory optimization
+ * @param offset - Starting index
+ * @param limit - Number of chats to load
+ */
+export const loadChatsBatch = async (offset: number, limit: number): Promise<Chat[]> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction([CHAT_STORE], 'readonly');
+    const store = transaction.objectStore(CHAT_STORE);
+
+    const chats = await new Promise<Chat[]>((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const allResults = request.result.map((chat: Chat & { createdAt: string | Date }) => ({
+          ...chat,
+          createdAt: new Date(chat.createdAt)
+        }));
+        // Return the requested batch
+        const batch = allResults.slice(offset, offset + limit);
+        resolve(batch);
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    db.close();
+    return chats;
+  } catch (error) {
+    console.error('Failed to load chats batch from IndexedDB:', error);
+    return [];
   }
 };

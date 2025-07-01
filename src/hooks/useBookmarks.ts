@@ -215,8 +215,14 @@ export const useBookmarks = () => {
    * Get performance metrics (for debugging)
    */
   const getPerformanceMetrics = useCallback(() => {
-    performanceMonitor.logSummary();
     return performanceMonitor.getMetrics();
+  }, []);
+  
+  /**
+   * Log performance summary (for debugging)
+   */
+  const logPerformanceSummary = useCallback(() => {
+    performanceMonitor.logSummary();
   }, []);
   
   return {
@@ -230,6 +236,7 @@ export const useBookmarks = () => {
     getBookmarksForChat,
     refreshBookmarks,
     clearError,
-    getPerformanceMetrics
+    getPerformanceMetrics,
+    logPerformanceSummary
   };
 };

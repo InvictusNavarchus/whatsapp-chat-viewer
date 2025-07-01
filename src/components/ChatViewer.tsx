@@ -55,9 +55,14 @@ export const ChatViewer = ({
   // Load bookmark statuses for all messages
   useEffect(() => {
     const loadBookmarkStatuses = async () => {
-      const messageIds = chat.messages.map(m => m.id);
-      const statuses = await getBookmarkStatus(messageIds);
-      setBookmarkStatuses(statuses);
+      try {
+        // Consider loading in batches for large chats
+        const messageIds = chat.messages.map(m => m.id);
+        const statuses = await getBookmarkStatus(messageIds);
+        setBookmarkStatuses(statuses);
+      } catch (error) {
+        console.error('Failed to load bookmark statuses:', error);
+      }
     };
     
     loadBookmarkStatuses();

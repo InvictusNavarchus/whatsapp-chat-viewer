@@ -1,5 +1,5 @@
 import { Chat, BookmarkedMessage } from '@/types/chat';
-import { loadChatsFromIndexedDB } from './indexedDb';
+import { loadChatsFromIndexedDB, loadChatsBatch } from './indexedDb';
 import { saveChat, loadAllChatMetadata, saveBookmark } from './normalizedDb';
 import { loadBookmarks as loadLegacyBookmarks } from './localStorage';
 import { performanceMonitor } from './performance';
@@ -115,29 +115,33 @@ export const migrateChatData = async (): Promise<{ success: boolean; migratedCha
   try {
     console.log('Starting migration from old IndexedDB structure...');
     
-    // Load all chats from old structure
-    const oldChats = await loadChatsFromIndexedDB();
+    let migratedChats = 0;
+    let totalMessages = 0;
+    const BATCH_SIZE = 10; // Process chats in batches
     
-    if (oldChats.length === 0) {
+    // Process chats in batches to optimize memory usage
+    while (true) {
+      const batch = await loadChatsBatch(migratedChats, BATCH_SIZE);
+      if (batch.length === 0) break;
+      
+      for (const chat of batch) {
+        console.log(`Migrating chat: ${chat.name} (${chat.messages.length} messages)`);
+        await saveChat(chat);
+        totalMessages += chat.messages.length;
+        migratedChats++;
+      }
+    }
+    
+    if (migratedChats === 0) {
       console.log('No chats found in old structure, skipping migration');
       return { success: true, migratedChats: 0, migratedMessages: 0 };
     }
     
-    let totalMessages = 0;
-    
-    // Migrate each chat
-    for (const chat of oldChats) {
-      console.log(`Migrating chat: ${chat.name} (${chat.messages.length} messages)`);
-      
-      await saveChat(chat);
-      totalMessages += chat.messages.length;
-    }
-    
-    console.log(`Successfully migrated ${oldChats.length} chats with ${totalMessages} messages`);
+    console.log(`Successfully migrated ${migratedChats} chats with ${totalMessages} messages`);
     
     return {
       success: true,
-      migratedChats: oldChats.length,
+      migratedChats,
       migratedMessages: totalMessages
     };
   } catch (error) {
