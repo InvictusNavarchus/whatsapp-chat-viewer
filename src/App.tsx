@@ -6,11 +6,16 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { setupDebugUtils } from "@/utils/debug";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import log from 'loglevel';
 
 const queryClient = new QueryClient();
+const logger = log.getLogger('app');
+logger.setLevel('debug');
 
 // Setup debug utilities in development
+logger.info('🚀 [APP] Initializing WhatsApp Chat Viewer App...');
 setupDebugUtils();
+logger.info('🛠️ [APP] Debug utilities set up.');
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

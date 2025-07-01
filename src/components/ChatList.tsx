@@ -3,6 +3,10 @@ import { Chat } from '@/types/chat';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatList');
+logger.setLevel('debug');
 
 interface ChatListProps {
   chats: Chat[];

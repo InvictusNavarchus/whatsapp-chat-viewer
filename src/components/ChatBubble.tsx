@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { Bookmark } from 'lucide-react';
 import { Message } from '@/types/chat';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatBubble');
+logger.setLevel('debug');
 
 interface ChatBubbleProps {
   message: Message;

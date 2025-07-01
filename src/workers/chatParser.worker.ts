@@ -3,6 +3,10 @@
  * Processes large chat files in chunks to avoid blocking the main thread
  */
 
+import log from 'loglevel';
+const logger = log.getLogger('chatParserWorker');
+logger.setLevel('debug');
+
 interface ParsedMessage {
   id: string;
   date: string;

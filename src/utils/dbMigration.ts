@@ -3,6 +3,9 @@ import { loadChatsFromIndexedDB, loadChatsBatch } from './indexedDb';
 import { saveChat, loadAllChatMetadata, saveBookmarkLegacy } from './normalizedDb';
 import { loadBookmarks as loadLegacyBookmarks } from './localStorage';
 import { performanceMonitor } from './performance';
+import log from 'loglevel';
+const logger = log.getLogger('dbMigration');
+logger.setLevel('debug');
 
 /**
  * Check if any data exists in the old database
@@ -101,7 +104,7 @@ export const needsMigrationFromOldDb = async (): Promise<boolean> => {
     // If old DB has data and new DB is empty, migration is needed
     return hasOld && !hasNew;
   } catch (error) {
-    console.error('Failed to check migration status:', error);
+    logger.error('❌ [MIGRATION] Failed to check migration status:', error);
     return false;
   }
 };
@@ -113,7 +116,7 @@ export const migrateChatData = async (): Promise<{ success: boolean; migratedCha
   performanceMonitor.startTimer('migrateChatData');
   
   try {
-    console.log('Starting migration from old IndexedDB structure...');
+    logger.info('🔄 [MIGRATION] Starting migration from old IndexedDB structure...');
     
     let migratedChats = 0;
     let totalMessages = 0;
@@ -125,7 +128,7 @@ export const migrateChatData = async (): Promise<{ success: boolean; migratedCha
       if (batch.length === 0) break;
       
       for (const chat of batch) {
-        console.log(`Migrating chat: ${chat.name} (${chat.messages.length} messages)`);
+        logger.info(`🔄 [MIGRATION] Migrating chat: ${chat.name} (${chat.messages.length} messages)`);
         await saveChat(chat);
         totalMessages += chat.messages.length;
         migratedChats++;
@@ -133,11 +136,11 @@ export const migrateChatData = async (): Promise<{ success: boolean; migratedCha
     }
     
     if (migratedChats === 0) {
-      console.log('No chats found in old structure, skipping migration');
+      logger.info('📭 [MIGRATION] No chats found in old structure, skipping migration');
       return { success: true, migratedChats: 0, migratedMessages: 0 };
     }
     
-    console.log(`Successfully migrated ${migratedChats} chats with ${totalMessages} messages`);
+    logger.info(`✅ [MIGRATION] Successfully migrated ${migratedChats} chats with ${totalMessages} messages`);
     
     return {
       success: true,
@@ -145,7 +148,7 @@ export const migrateChatData = async (): Promise<{ success: boolean; migratedCha
       migratedMessages: totalMessages
     };
   } catch (error) {
-    console.error('Failed to migrate chat data:', error);
+    logger.error('❌ [MIGRATION] Failed to migrate chat data:', error);
     return { success: false, migratedChats: 0, migratedMessages: 0 };
   } finally {
     performanceMonitor.endTimer('migrateChatData');
@@ -159,13 +162,13 @@ export const migrateBookmarkData = async (): Promise<{ success: boolean; migrate
   performanceMonitor.startTimer('migrateBookmarkData');
   
   try {
-    console.log('Starting bookmark migration from localStorage...');
+    logger.info('🔄 [MIGRATION] Starting bookmark migration from localStorage...');
     
     // Load bookmarks from localStorage
     const legacyBookmarks = loadLegacyBookmarks();
     
     if (legacyBookmarks.length === 0) {
-      console.log('No bookmarks found in localStorage, skipping migration');
+      logger.info('📭 [MIGRATION] No bookmarks found in localStorage, skipping migration');
       return { success: true, migratedBookmarks: 0 };
     }
     
@@ -174,14 +177,14 @@ export const migrateBookmarkData = async (): Promise<{ success: boolean; migrate
       await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
     }
     
-    console.log(`Successfully migrated ${legacyBookmarks.length} bookmarks`);
+    logger.info(`✅ [MIGRATION] Successfully migrated ${legacyBookmarks.length} bookmarks`);
     
     return {
       success: true,
       migratedBookmarks: legacyBookmarks.length
     };
   } catch (error) {
-    console.error('Failed to migrate bookmark data:', error);
+    logger.error('❌ [MIGRATION] Failed to migrate bookmark data:', error);
     return { success: false, migratedBookmarks: 0 };
   } finally {
     performanceMonitor.endTimer('migrateBookmarkData');
@@ -199,7 +202,7 @@ export const performFullMigration = async (): Promise<{
   performanceMonitor.startTimer('performFullMigration');
   
   try {
-    console.log('Starting full data migration to normalized structure...');
+    logger.info('🔄 [MIGRATION] Starting full data migration to normalized structure...');
     
     // Run both migrations in parallel
     const [chatMigration, bookmarkMigration] = await Promise.all([
@@ -210,10 +213,10 @@ export const performFullMigration = async (): Promise<{
     const success = chatMigration.success && bookmarkMigration.success;
     
     if (success) {
-      console.log('Full migration completed successfully!');
+      logger.info('🎉 [MIGRATION] Full migration completed successfully!');
       performanceMonitor.logSummary();
     } else {
-      console.error('Migration completed with errors');
+      logger.error('⚠️ [MIGRATION] Migration completed with errors');
     }
     
     return {
@@ -222,7 +225,7 @@ export const performFullMigration = async (): Promise<{
       bookmarkMigration
     };
   } catch (error) {
-    console.error('Failed to perform full migration:', error);
+    logger.error('❌ [MIGRATION] Failed to perform full migration:', error);
     return {
       success: false,
       chatMigration: { success: false, migratedChats: 0, migratedMessages: 0 },
@@ -243,16 +246,16 @@ export const cleanupOldDatabase = async (): Promise<void> => {
     
     await new Promise<void>((resolve, reject) => {
       deleteRequest.onsuccess = () => {
-        console.log('Old database cleaned up successfully');
+        logger.info('🧹 [MIGRATION] Old database cleaned up successfully');
         resolve();
       };
       deleteRequest.onerror = () => {
-        console.error('Failed to cleanup old database:', deleteRequest.error);
+        logger.error('❌ [MIGRATION] Failed to cleanup old database:', deleteRequest.error);
         reject(deleteRequest.error);
       };
     });
   } catch (error) {
-    console.error('Failed to cleanup old database:', error);
+    logger.error('❌ [MIGRATION] Failed to cleanup old database:', error);
     // Don't throw - cleanup failure shouldn't break the app
   }
 };

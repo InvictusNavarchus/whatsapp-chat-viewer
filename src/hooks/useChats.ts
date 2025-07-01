@@ -9,6 +9,10 @@ import {
 } from '@/utils/normalizedDb';
 import { needsMigrationFromOldDb, performFullMigration, cleanupOldDatabase } from '@/utils/dbMigration';
 import { performanceMonitor } from '@/utils/performance';
+import log from 'loglevel';
+
+const logger = log.getLogger('useChats');
+logger.setLevel('debug');
 
 interface ChatListItem {
   id: string;
@@ -55,7 +59,7 @@ export const useChats = () => {
         if (!isMounted) return;
         
         if (needsMigration) {
-          console.log('Migration needed, starting migration process...');
+          logger.info('Migration needed, starting migration process...');
           setMigrationStatus({ isComplete: false, isRunning: true });
           
           const migrationResult = await performFullMigration();
@@ -68,7 +72,7 @@ export const useChats = () => {
             // Clean up old database in background
             cleanupOldDatabase().catch(console.error);
             
-            console.log('Migration completed:', migrationResult);
+            logger.info('Migration completed:', migrationResult);
           } else {
             setMigrationStatus({ 
               isComplete: false, 
@@ -98,7 +102,7 @@ export const useChats = () => {
         })));
         
       } catch (err) {
-        console.error('Failed to initialize chats:', err);
+        logger.error('Failed to initialize chats:', err);
         if (isMounted) {
           setError('Failed to load chat data');
         }
@@ -139,7 +143,7 @@ export const useChats = () => {
       
       return chat;
     } catch (err) {
-      console.error(`Failed to load chat ${chatId}:`, err);
+      logger.error(`Failed to load chat ${chatId}:`, err);
       setError(`Failed to load chat: ${chatId}`);
       return null;
     } finally {
@@ -177,7 +181,7 @@ export const useChats = () => {
       setLoadedChats(prev => new Map(prev).set(chat.id, chat));
       
     } catch (err) {
-      console.error('Failed to add chat:', err);
+      logger.error('Failed to add chat:', err);
       setError('Failed to save chat');
       throw err;
     } finally {
@@ -206,7 +210,7 @@ export const useChats = () => {
       });
       
     } catch (err) {
-      console.error('Failed to delete chat:', err);
+      logger.error('Failed to delete chat:', err);
       setError('Failed to delete chat');
       throw err;
     } finally {
@@ -248,7 +252,7 @@ export const useChats = () => {
       });
       
     } catch (err) {
-      console.error('Failed to preload chats:', err);
+      logger.error('Failed to preload chats:', err);
     } finally {
       performanceMonitor.endTimer('preloadChats');
     }
@@ -279,7 +283,7 @@ export const useChats = () => {
       })));
       setError(null);
     } catch (err) {
-      console.error('Failed to refresh chat list:', err);
+      logger.error('Failed to refresh chat list:', err);
       setError('Failed to refresh chat data');
     } finally {
       setIsLoading(false);

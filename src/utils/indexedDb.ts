@@ -1,4 +1,8 @@
 import { Chat } from '@/types/chat';
+import log from 'loglevel';
+
+const logger = log.getLogger('indexedDb');
+logger.setLevel('debug');
 
 const DB_NAME = 'whatsapp-viewer-db';
 const DB_VERSION = 1;
@@ -12,8 +16,21 @@ const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onerror = (event) => {
+      logger.error('❌ [INDEXEDDB] Failed to open IndexedDB:', event);
+      reject(request.error);
+    };
+    request.onsuccess = () => {
+      logger.info('✅ [INDEXEDDB] Successfully opened IndexedDB');
+      const db = request.result;
+      db.onclose = () => {
+        logger.warn('🔌 [INDEXEDDB] Connection closed unexpectedly');
+      };
+      db.onerror = (event) => {
+        logger.error('❌ [INDEXEDDB] Connection error:', event);
+      };
+      resolve(db);
+    };
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -56,7 +73,7 @@ export const saveChatsToIndexedDB = async (chats: Chat[]): Promise<void> => {
 
     db.close();
   } catch (error) {
-    console.error('Failed to save chats to IndexedDB:', error);
+    logger.error('❌ [INDEXEDDB] Failed to save chats to IndexedDB:', error);
     throw error;
   }
 };
@@ -86,7 +103,7 @@ export const loadChatsFromIndexedDB = async (): Promise<Chat[]> => {
     db.close();
     return chats;
   } catch (error) {
-    console.error('Failed to load chats from IndexedDB:', error);
+    logger.error('❌ [INDEXEDDB] Failed to load chats from IndexedDB:', error);
     return [];
   }
 };
@@ -109,7 +126,7 @@ export const saveChatToIndexedDB = async (chat: Chat): Promise<void> => {
 
     db.close();
   } catch (error) {
-    console.error('Failed to save chat to IndexedDB:', error);
+    logger.error('❌ [INDEXEDDB] Failed to save chat to IndexedDB:', error);
     throw error;
   }
 };
@@ -132,7 +149,7 @@ export const deleteChatFromIndexedDB = async (chatId: string): Promise<void> => 
 
     db.close();
   } catch (error) {
-    console.error('Failed to delete chat from IndexedDB:', error);
+    logger.error('❌ [INDEXEDDB] Failed to delete chat from IndexedDB:', error);
     throw error;
   }
 };
@@ -167,7 +184,7 @@ export const getChatFromIndexedDB = async (chatId: string): Promise<Chat | null>
     db.close();
     return chat;
   } catch (error) {
-    console.error('Failed to get chat from IndexedDB:', error);
+    logger.error('❌ [INDEXEDDB] Failed to get chat from IndexedDB:', error);
     return null;
   }
 };
@@ -200,7 +217,7 @@ export const loadChatsBatch = async (offset: number, limit: number): Promise<Cha
     db.close();
     return chats;
   } catch (error) {
-    console.error('Failed to load chats batch from IndexedDB:', error);
+    logger.error('❌ [INDEXEDDB] Failed to load chats batch from IndexedDB:', error);
     return [];
   }
 };

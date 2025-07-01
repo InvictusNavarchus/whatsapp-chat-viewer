@@ -1,4 +1,8 @@
 import { Message } from '@/types/chat';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatParser');
+logger.setLevel('debug');
 
 interface ParseResult {
   messages: Message[];
@@ -21,6 +25,7 @@ export const parseWhatsAppChat = async (
   content: string,
   onProgress?: ParseProgressCallback
 ): Promise<ParseResult> => {
+  logger.info('Starting parseWhatsAppChat');
   return new Promise((resolve, reject) => {
     // Create Web Worker for parsing
     const worker = new Worker(
@@ -40,11 +45,13 @@ export const parseWhatsAppChat = async (
           
         case 'complete':
           worker.terminate();
+          logger.info('parseWhatsAppChat completed');
           resolve(message.result);
           break;
           
         case 'error':
           worker.terminate();
+          logger.error(`parseWhatsAppChat error: ${message.error}`);
           reject(new Error(message.error));
           break;
       }
@@ -52,6 +59,7 @@ export const parseWhatsAppChat = async (
     
     worker.onerror = (error) => {
       worker.terminate();
+      logger.error(`Worker error: ${error.message}`);
       reject(new Error(`Worker error: ${error.message}`));
     };
     
@@ -65,6 +73,7 @@ export const parseWhatsAppChat = async (
  * @deprecated Use parseWhatsAppChat instead
  */
 export const parseWhatsAppChatSync = (content: string): Message[] => {
+  logger.info('Starting parseWhatsAppChatSync');
   const lines = content.split('\n').filter(line => line.trim());
   const messages: Message[] = [];
   
@@ -106,6 +115,7 @@ export const parseWhatsAppChatSync = (content: string): Message[] => {
     }
   }
   
+  logger.info(`parseWhatsAppChatSync completed. ${messages.length} messages parsed`);
   return messages;
 };
 

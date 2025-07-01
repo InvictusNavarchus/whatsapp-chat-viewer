@@ -2,6 +2,10 @@
  * Simple performance monitoring utility for tracking bookmark operations
  */
 
+import log from 'loglevel';
+const logger = log.getLogger('performance');
+logger.setLevel('debug');
+
 interface PerformanceMetric {
   operation: string;
   duration: number;
@@ -26,7 +30,7 @@ class PerformanceMonitor {
   endTimer(operation: string): number {
     const startTime = this.timers.get(operation);
     if (!startTime) {
-      console.warn(`No timer found for operation: ${operation}`);
+      logger.warn('⏱️ [PERF] No timer found for operation:', operation);
       return 0;
     }
 
@@ -50,7 +54,7 @@ class PerformanceMonitor {
 
     // Log slow operations (> 100ms)
     if (duration > 100) {
-      console.warn(`Slow operation detected: ${operation} took ${duration.toFixed(2)}ms`);
+      logger.warn(`🐢 [PERF] Slow operation detected: ${operation} took ${duration.toFixed(2)}ms`);
     }
 
     return duration;
@@ -87,14 +91,12 @@ class PerformanceMonitor {
    */
   logSummary(): void {
     const operations = [...new Set(this.metrics.map(m => m.operation))];
-    
-    console.group('Bookmark Performance Summary');
+    logger.info('📊 [PERF] Bookmark Performance Summary:');
     operations.forEach(operation => {
       const avg = this.getAverageDuration(operation);
       const count = this.metrics.filter(m => m.operation === operation).length;
-      console.log(`${operation}: ${avg.toFixed(2)}ms avg (${count} operations)`);
+      logger.info(`🔹 [PERF] ${operation}: ${avg.toFixed(2)}ms avg (${count} operations)`);
     });
-    console.groupEnd();
   }
 }
 

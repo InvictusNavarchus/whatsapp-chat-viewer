@@ -1,5 +1,9 @@
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
 import { performanceMonitor } from './performance';
+import log from 'loglevel';
+
+const logger = log.getLogger('normalizedDb');
+logger.setLevel('debug');
 
 const DB_NAME = 'whatsapp-viewer-v2';
 const DB_VERSION = 2;
@@ -117,7 +121,7 @@ const initNormalizedDB = (): Promise<IDBDatabase> => {
         bookmarkStore.createIndex('sender', 'sender', { unique: false });
         bookmarkStore.createIndex('date', 'date', { unique: false });
         
-        console.log('Migrated bookmarks store to denormalized format');
+        logger.info('🔄 [DB] Migrated bookmarks store to denormalized format');
       } else if (!database.objectStoreNames.contains(STORES.BOOKMARKS)) {
         // Create bookmarks store for new installations
         const bookmarkStore = database.createObjectStore(STORES.BOOKMARKS, { keyPath: 'id' });
@@ -171,7 +175,7 @@ export const saveChatMetadata = async (chat: Chat): Promise<void> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to save chat metadata:', error);
+    logger.error('💾 [DB] Failed to save chat metadata:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('saveChatMetadata');
@@ -188,20 +192,20 @@ const parseTimestamp = (date: string, time: string): number => {
   const timeRegex = /^\d{1,2}:\d{2}(:\d{2})?(\s?(AM|PM))?$/i;
   
   if (!dateRegex.test(date.trim())) {
-    console.warn(`Invalid date format: ${date}`);
-    return Date.now(); // Fallback to current timestamp
+    logger.warn('📅 [DB] Invalid date format:', date);
+    return Date.now();
   }
   
   if (!timeRegex.test(time.trim())) {
-    console.warn(`Invalid time format: ${time}`);
-    return Date.now(); // Fallback to current timestamp
+    logger.warn('⏰ [DB] Invalid time format:', time);
+    return Date.now();
   }
   
   const timestamp = new Date(`${date} ${time}`).getTime();
   
   if (isNaN(timestamp)) {
-    console.warn(`Failed to parse timestamp from date: ${date}, time: ${time}`);
-    return Date.now(); // Fallback to current timestamp
+    logger.warn('❓ [DB] Failed to parse timestamp from date:', date, 'time:', time);
+    return Date.now();
   }
   
   return timestamp;
@@ -241,7 +245,7 @@ export const saveChatMessages = async (chatId: string, messages: Message[]): Pro
       )
     );
   } catch (error) {
-    console.error('Failed to save chat messages:', error);
+    logger.error('💾 [DB] Failed to save chat messages:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('saveChatMessages');
@@ -261,7 +265,7 @@ export const saveChat = async (chat: Chat): Promise<void> => {
       saveChatMessages(chat.id, chat.messages)
     ]);
   } catch (error) {
-    console.error('Failed to save chat:', error);
+    logger.error('💾 [DB] Failed to save chat:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('saveChat');
@@ -288,7 +292,7 @@ export const loadChatMetadata = async (chatId: string): Promise<ChatRecord | nul
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to load chat metadata:', error);
+    logger.error('💾 [DB] Failed to load chat metadata:', error);
     return null;
   } finally {
     performanceMonitor.endTimer('loadChatMetadata');
@@ -318,7 +322,7 @@ export const loadAllChatMetadata = async (): Promise<ChatRecord[]> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to load all chat metadata:', error);
+    logger.error('💾 [DB] Failed to load all chat metadata:', error);
     return [];
   } finally {
     performanceMonitor.endTimer('loadAllChatMetadata');
@@ -369,7 +373,7 @@ export const loadChatMessages = async (
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to load chat messages:', error);
+    logger.error('💾 [DB] Failed to load chat messages:', error);
     return [];
   } finally {
     performanceMonitor.endTimer('loadChatMessages');
@@ -398,7 +402,7 @@ export const loadChat = async (chatId: string): Promise<Chat | null> => {
       lastMessageTime: metadata.lastMessageTime
     };
   } catch (error) {
-    console.error('Failed to load chat:', error);
+    logger.error('💾 [DB] Failed to load chat:', error);
     return null;
   } finally {
     performanceMonitor.endTimer('loadChat');
@@ -445,7 +449,7 @@ export const saveBookmark = async (
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to save bookmark:', error);
+    logger.error('💾 [DB] Failed to save bookmark:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('saveBookmark');
@@ -469,7 +473,7 @@ export const removeBookmark = async (messageId: string): Promise<void> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to remove bookmark:', error);
+    logger.error('💾 [DB] Failed to remove bookmark:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('removeBookmark');
@@ -521,7 +525,7 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
       return bookmarkB.createdAt.getTime() - bookmarkA.createdAt.getTime();
     });
   } catch (error) {
-    console.error('Failed to load bookmarks:', error);
+    logger.error('💾 [DB] Failed to load bookmarks:', error);
     return [];
   } finally {
     performanceMonitor.endTimer('loadBookmarks');
@@ -545,7 +549,7 @@ export const isMessageBookmarked = async (messageId: string): Promise<boolean> =
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to check bookmark status:', error);
+    logger.error('🔖 [DB] Failed to check bookmark status:', error);
     return false;
   } finally {
     performanceMonitor.endTimer('isMessageBookmarked');
@@ -576,7 +580,7 @@ export const getBookmarkStatus = async (messageIds: string[]): Promise<Record<st
     
     return Object.fromEntries(statuses);
   } catch (error) {
-    console.error('Failed to get bookmark status:', error);
+    logger.error('🔖 [DB] Failed to get bookmark status:', error);
     return {};
   } finally {
     performanceMonitor.endTimer('getBookmarkStatus');
@@ -637,7 +641,7 @@ export const deleteChat = async (chatId: string): Promise<void> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to delete chat:', error);
+    logger.error('💾 [DB] Failed to delete chat:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('deleteChat');
@@ -694,7 +698,7 @@ export const getMessageAndChatForBookmark = async (
       chatName: chatRecord.name
     };
   } catch (error) {
-    console.error('Failed to get message and chat data:', error);
+    logger.error('💾 [DB] Failed to get message and chat data:', error);
     return null;
   }
 };

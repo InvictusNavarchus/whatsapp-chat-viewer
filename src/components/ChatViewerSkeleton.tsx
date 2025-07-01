@@ -1,4 +1,8 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatViewerSkeleton');
+logger.setLevel('debug');
 
 export const ChatViewerSkeleton = () => {
   return (

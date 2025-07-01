@@ -1,5 +1,9 @@
 import { BookmarkedMessage } from '@/types/chat';
 import { performanceMonitor } from './performance';
+import log from 'loglevel';
+
+const logger = log.getLogger('bookmarkStorage');
+logger.setLevel('debug');
 
 const DB_NAME = 'WhatsAppViewerBookmarks';
 const DB_VERSION = 1;
@@ -49,12 +53,12 @@ const initDB = (): Promise<IDBDatabase> => {
       
       // Set up connection loss handlers
       db.onclose = () => {
-        console.warn('IndexedDB connection closed unexpectedly');
+        logger.warn('🔌 [BOOKMARK STORAGE] IndexedDB connection closed unexpectedly');
         db = null;
       };
       
       db.onerror = (event) => {
-        console.error('IndexedDB connection error:', event);
+        logger.error('❌ [BOOKMARK STORAGE] IndexedDB connection error:', event);
         db = null;
       };
       
@@ -95,7 +99,7 @@ export const saveBookmark = async (bookmark: BookmarkedMessage): Promise<void> =
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to save bookmark:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to save bookmark:', error);
     throw error;
   } finally {
     performanceMonitor.endTimer('saveBookmark');
@@ -117,7 +121,7 @@ export const removeBookmark = async (messageId: string): Promise<void> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to remove bookmark:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to remove bookmark:', error);
     throw error;
   }
 };
@@ -148,7 +152,7 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to load bookmarks:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to load bookmarks:', error);
     return [];
   } finally {
     performanceMonitor.endTimer('loadBookmarks');
@@ -171,7 +175,7 @@ export const isMessageBookmarked = async (messageId: string): Promise<boolean> =
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to check bookmark status:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to check bookmark status:', error);
     return false;
   }
 };
@@ -199,7 +203,7 @@ export const getBookmarksByChat = async (chatId: string): Promise<BookmarkedMess
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to get bookmarks by chat:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to get bookmarks by chat:', error);
     return [];
   }
 };
@@ -219,7 +223,7 @@ export const clearAllBookmarks = async (): Promise<void> => {
       request.onerror = () => reject(request.error);
     });
   } catch (error) {
-    console.error('Failed to clear bookmarks:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to clear bookmarks:', error);
     throw error;
   }
 };
@@ -245,7 +249,7 @@ export const saveBookmarksBatch = async (bookmarks: BookmarkedMessage[]): Promis
       transaction.onerror = () => reject(transaction.error);
     });
   } catch (error) {
-    console.error('Failed to save bookmarks batch:', error);
+    logger.error('❌ [BOOKMARK STORAGE] Failed to save bookmarks batch:', error);
     throw error;
   }
 };

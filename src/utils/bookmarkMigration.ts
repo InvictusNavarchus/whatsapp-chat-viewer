@@ -3,6 +3,9 @@
  */
 
 import { performanceMonitor } from './performance';
+import log from 'loglevel';
+const logger = log.getLogger('bookmarkMigration');
+logger.setLevel('debug');
 
 const DB_NAME = 'whatsapp-viewer-v2';
 
@@ -26,7 +29,7 @@ export const migrateBookmarksToV2 = async (): Promise<void> => {
     });
 
     if (!oldDb.objectStoreNames.contains('bookmarks')) {
-      console.log('No existing bookmarks to migrate');
+      logger.info('No existing bookmarks to migrate');
       oldDb.close();
       return;
     }
@@ -43,7 +46,7 @@ export const migrateBookmarksToV2 = async (): Promise<void> => {
       request.onerror = () => reject(request.error);
     });
 
-    console.log(`Found ${oldBookmarks.length} bookmarks to migrate`);
+    logger.info(`Found ${oldBookmarks.length} bookmarks to migrate`);
 
     // Convert each bookmark to new format
     const migratedBookmarks = await Promise.all(
@@ -63,7 +66,7 @@ export const migrateBookmarksToV2 = async (): Promise<void> => {
           ]);
 
           if (!messageRecord || !chatRecord) {
-            console.warn(`Skipping bookmark ${bookmark.id} - missing message or chat data`);
+            logger.warn(`⚠️ [BOOKMARK MIGRATION] Skipping bookmark ${bookmark.id} - missing message or chat data`);
             return null;
           }
 
@@ -79,7 +82,7 @@ export const migrateBookmarksToV2 = async (): Promise<void> => {
             isSystemMessage: messageRecord.isSystemMessage
           };
         } catch (error) {
-          console.error(`Error migrating bookmark ${bookmark.id}:`, error);
+          logger.error(`❌ [BOOKMARK MIGRATION] Error migrating bookmark ${bookmark.id}:`, error);
           return null;
         }
       })
@@ -89,7 +92,7 @@ export const migrateBookmarksToV2 = async (): Promise<void> => {
 
     // Filter out failed migrations
     const validBookmarks = migratedBookmarks.filter(bookmark => bookmark !== null);
-    console.log(`Successfully migrated ${validBookmarks.length} bookmarks`);
+    logger.info(`✅ [BOOKMARK MIGRATION] Successfully migrated ${validBookmarks.length} bookmarks`);
 
     // Store migrated bookmarks in the new format
     if (validBookmarks.length > 0) {
@@ -116,7 +119,7 @@ export const migrateBookmarksToV2 = async (): Promise<void> => {
     }
 
   } catch (error) {
-    console.error('Error during bookmark migration:', error);
+    logger.error('Error during bookmark migration:', error);
     // Don't throw - allow the app to continue with empty bookmarks
   } finally {
     performanceMonitor.endTimer('migrateBookmarksToV2');

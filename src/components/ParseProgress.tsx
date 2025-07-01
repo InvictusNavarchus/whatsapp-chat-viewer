@@ -1,4 +1,8 @@
 import { Progress } from '@/components/ui/progress';
+import log from 'loglevel';
+
+const logger = log.getLogger('parseProgress');
+logger.setLevel('debug');
 
 interface ParseProgressProps {
   progress: number;

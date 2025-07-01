@@ -15,6 +15,10 @@ import { ParseProgress } from './ParseProgress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('whatsappViewer');
+logger.setLevel('debug');
 
 type ViewState = 'list' | 'chat' | 'bookmarks' | 'upload';
 

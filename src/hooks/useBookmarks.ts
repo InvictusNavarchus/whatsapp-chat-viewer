@@ -12,6 +12,10 @@ import {
   clearLegacyBookmarks 
 } from '@/utils/localStorage';
 import { performanceMonitor } from '@/utils/performance';
+import log from 'loglevel';
+
+const logger = log.getLogger('useBookmarks');
+logger.setLevel('debug');
 
 /**
  * Custom hook for managing bookmarks with IndexedDB storage and efficient state management
@@ -75,7 +79,7 @@ export const useBookmarks = () => {
           setBookmarks(indexedBookmarks);
         }
       } catch (err) {
-        console.error('Failed to initialize bookmarks:', err);
+        logger.error('❌ [HOOK] Failed to initialize bookmarks:', err);
         setError('Failed to load bookmarks');
         // Fallback to localStorage
         const legacyBookmarks = loadLegacyBookmarks();
@@ -116,7 +120,7 @@ export const useBookmarks = () => {
       // Save to IndexedDB
       await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
     } catch (err) {
-      console.error('Failed to add bookmark:', err);
+      logger.error('❌ [HOOK] Failed to add bookmark:', err);
       setError('Failed to add bookmark');
       
       // Rollback optimistic update
@@ -148,7 +152,7 @@ export const useBookmarks = () => {
       // Remove from IndexedDB
       await removeBookmark(messageId);
     } catch (err) {
-      console.error('Failed to remove bookmark:', err);
+      logger.error('❌ [HOOK] Failed to remove bookmark:', err);
       setError('Failed to remove bookmark');
       
       // Rollback optimistic update
@@ -197,7 +201,7 @@ export const useBookmarks = () => {
       setBookmarks(freshBookmarks);
       setError(null);
     } catch (err) {
-      console.error('Failed to refresh bookmarks:', err);
+      logger.error('❌ [HOOK] Failed to refresh bookmarks:', err);
       setError('Failed to refresh bookmarks');
     } finally {
       setIsLoading(false);
