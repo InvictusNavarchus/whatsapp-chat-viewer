@@ -19,7 +19,7 @@ async function testPerformance() {
     // Test save bookmark - use relative imports that will be resolved by the build system
     console.time('Save Bookmark');
     const normalizedDbModule = await import('./dist/src/utils/normalizedDb.js');
-    await normalizedDbModule.saveBookmark(testMessageId, testChatId);
+    await normalizedDbModule.saveBookmarkLegacy(testMessageId, testChatId);
     console.timeEnd('Save Bookmark');
     
     // Test load bookmarks

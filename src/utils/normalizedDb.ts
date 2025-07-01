@@ -2,7 +2,7 @@ import { Chat, Message, BookmarkedMessage } from '@/types/chat';
 import { performanceMonitor } from './performance';
 
 const DB_NAME = 'whatsapp-viewer-v2';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // Store names
 const STORES = {
@@ -37,8 +37,15 @@ interface MessageRecord {
 interface BookmarkRecord {
   id: string; // messageId
   chatId: string;
-  messageId: string;
   createdAt: Date;
+  
+  // Denormalized data to avoid expensive joins
+  sender: string;
+  content: string;
+  date: string;
+  time: string;
+  chatName: string;
+  isSystemMessage: boolean;
 }
 
 interface MetadataRecord {
@@ -70,6 +77,8 @@ const initNormalizedDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const database = (event.target as IDBOpenDBRequest).result;
+      const transaction = (event.target as IDBOpenDBRequest).transaction!;
+      const oldVersion = event.oldVersion;
       
       // Create chats store
       if (!database.objectStoreNames.contains(STORES.CHATS)) {
@@ -92,13 +101,31 @@ const initNormalizedDB = (): Promise<IDBDatabase> => {
         messageStore.createIndex('chatId_sender', ['chatId', 'sender'], { unique: false });
       }
 
-      // Create bookmarks store
-      if (!database.objectStoreNames.contains(STORES.BOOKMARKS)) {
+      // Handle bookmarks store migration
+      if (oldVersion < 2) {
+        // Migration from v1 to v2: Convert normalized bookmarks to denormalized
+        if (database.objectStoreNames.contains(STORES.BOOKMARKS)) {
+          // Delete old bookmarks store
+          database.deleteObjectStore(STORES.BOOKMARKS);
+        }
+        
+        // Create new denormalized bookmarks store
         const bookmarkStore = database.createObjectStore(STORES.BOOKMARKS, { keyPath: 'id' });
         bookmarkStore.createIndex('chatId', 'chatId', { unique: false });
-        bookmarkStore.createIndex('messageId', 'messageId', { unique: true });
         bookmarkStore.createIndex('createdAt', 'createdAt', { unique: false });
         bookmarkStore.createIndex('chatId_createdAt', ['chatId', 'createdAt'], { unique: false });
+        bookmarkStore.createIndex('sender', 'sender', { unique: false });
+        bookmarkStore.createIndex('date', 'date', { unique: false });
+        
+        console.log('Migrated bookmarks store to denormalized format');
+      } else if (!database.objectStoreNames.contains(STORES.BOOKMARKS)) {
+        // Create bookmarks store for new installations
+        const bookmarkStore = database.createObjectStore(STORES.BOOKMARKS, { keyPath: 'id' });
+        bookmarkStore.createIndex('chatId', 'chatId', { unique: false });
+        bookmarkStore.createIndex('createdAt', 'createdAt', { unique: false });
+        bookmarkStore.createIndex('chatId_createdAt', ['chatId', 'createdAt'], { unique: false });
+        bookmarkStore.createIndex('sender', 'sender', { unique: false });
+        bookmarkStore.createIndex('date', 'date', { unique: false });
       }
 
       // Create metadata store
@@ -379,9 +406,20 @@ export const loadChat = async (chatId: string): Promise<Chat | null> => {
 };
 
 /**
- * Save a bookmark
+ * Save a bookmark with denormalized data for fast retrieval
  */
-export const saveBookmark = async (messageId: string, chatId: string): Promise<void> => {
+export const saveBookmark = async (
+  messageId: string,
+  chatId: string,
+  messageData: {
+    sender: string;
+    content: string;
+    date: string;
+    time: string;
+    isSystemMessage: boolean;
+  },
+  chatName: string
+): Promise<void> => {
   performanceMonitor.startTimer('saveBookmark');
   
   try {
@@ -392,8 +430,13 @@ export const saveBookmark = async (messageId: string, chatId: string): Promise<v
     const bookmark: BookmarkRecord = {
       id: messageId,
       chatId,
-      messageId,
-      createdAt: new Date()
+      createdAt: new Date(),
+      sender: messageData.sender,
+      content: messageData.content,
+      date: messageData.date,
+      time: messageData.time,
+      chatName,
+      isSystemMessage: messageData.isSystemMessage
     };
     
     await new Promise<void>((resolve, reject) => {
@@ -434,59 +477,41 @@ export const removeBookmark = async (messageId: string): Promise<void> => {
 };
 
 /**
- * Load all bookmarks with full message data
+ * Load all bookmarks with denormalized data (fast, single query)
  */
 export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
   performanceMonitor.startTimer('loadBookmarks');
   
   try {
     const database = await initNormalizedDB();
-    const transaction = database.transaction([STORES.BOOKMARKS, STORES.MESSAGES, STORES.CHATS], 'readonly');
+    // Fast transaction - only includes BOOKMARKS store, not MESSAGES or CHATS
+    const transaction = database.transaction([STORES.BOOKMARKS], 'readonly');
     const bookmarkStore = transaction.objectStore(STORES.BOOKMARKS);
-    const messageStore = transaction.objectStore(STORES.MESSAGES);
-    const chatStore = transaction.objectStore(STORES.CHATS);
     
-    // Get all bookmarks
+    // Single, fast query - no joins needed
     const bookmarkRecords = await new Promise<BookmarkRecord[]>((resolve, reject) => {
       const request = bookmarkStore.getAll();
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
     
-    // Get full message and chat data for each bookmark
-    const bookmarks = await Promise.all(
-      bookmarkRecords.map(async (bookmark) => {
-        const [messageRecord, chatRecord] = await Promise.all([
-          new Promise<MessageRecord>((resolve, reject) => {
-            const request = messageStore.get(bookmark.messageId);
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-          }),
-          new Promise<ChatRecord>((resolve, reject) => {
-            const request = chatStore.get(bookmark.chatId);
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-          })
-        ]);
-        
-        return {
-          id: messageRecord.id,
-          date: messageRecord.date,
-          time: messageRecord.time,
-          sender: messageRecord.sender,
-          content: messageRecord.content,
-          isBookmarked: true,
-          isSystemMessage: messageRecord.isSystemMessage,
-          chatId: bookmark.chatId,
-          chatName: chatRecord.name
-        };
-      })
-    );
+    // Convert denormalized bookmark records to BookmarkedMessage format
+    const bookmarks: BookmarkedMessage[] = bookmarkRecords.map(bookmark => ({
+      id: bookmark.id,
+      date: bookmark.date,
+      time: bookmark.time,
+      sender: bookmark.sender,
+      content: bookmark.content,
+      isBookmarked: true,
+      isSystemMessage: bookmark.isSystemMessage,
+      chatId: bookmark.chatId,
+      chatName: bookmark.chatName
+    }));
     
     // Sort by bookmark creation date (newest first)
     return bookmarks.sort((a, b) => {
-      const bookmarkA = bookmarkRecords.find(br => br.messageId === a.id);
-      const bookmarkB = bookmarkRecords.find(br => br.messageId === b.id);
+      const bookmarkA = bookmarkRecords.find(br => br.id === a.id);
+      const bookmarkB = bookmarkRecords.find(br => br.id === b.id);
       
       // Handle cases where bookmarks might not be found
       if (!bookmarkA && !bookmarkB) return 0;
@@ -617,6 +642,73 @@ export const deleteChat = async (chatId: string): Promise<void> => {
   } finally {
     performanceMonitor.endTimer('deleteChat');
   }
+};
+
+/**
+ * Get message and chat data for bookmarking
+ */
+export const getMessageAndChatForBookmark = async (
+  messageId: string,
+  chatId: string
+): Promise<{
+  messageData: {
+    sender: string;
+    content: string;
+    date: string;
+    time: string;
+    isSystemMessage: boolean;
+  };
+  chatName: string;
+} | null> => {
+  try {
+    const database = await initNormalizedDB();
+    const transaction = database.transaction([STORES.MESSAGES, STORES.CHATS], 'readonly');
+    const messageStore = transaction.objectStore(STORES.MESSAGES);
+    const chatStore = transaction.objectStore(STORES.CHATS);
+    
+    const [messageRecord, chatRecord] = await Promise.all([
+      new Promise<MessageRecord>((resolve, reject) => {
+        const request = messageStore.get(messageId);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      }),
+      new Promise<ChatRecord>((resolve, reject) => {
+        const request = chatStore.get(chatId);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      })
+    ]);
+    
+    if (!messageRecord || !chatRecord) {
+      return null;
+    }
+    
+    return {
+      messageData: {
+        sender: messageRecord.sender,
+        content: messageRecord.content,
+        date: messageRecord.date,
+        time: messageRecord.time,
+        isSystemMessage: messageRecord.isSystemMessage
+      },
+      chatName: chatRecord.name
+    };
+  } catch (error) {
+    console.error('Failed to get message and chat data:', error);
+    return null;
+  }
+};
+
+/**
+ * Save a bookmark (backward compatibility wrapper)
+ */
+export const saveBookmarkLegacy = async (messageId: string, chatId: string): Promise<void> => {
+  const data = await getMessageAndChatForBookmark(messageId, chatId);
+  if (!data) {
+    throw new Error('Message or chat not found');
+  }
+  
+  return saveBookmark(messageId, chatId, data.messageData, data.chatName);
 };
 
 // Export types for use in other files

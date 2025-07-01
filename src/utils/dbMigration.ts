@@ -1,6 +1,6 @@
 import { Chat, BookmarkedMessage } from '@/types/chat';
 import { loadChatsFromIndexedDB, loadChatsBatch } from './indexedDb';
-import { saveChat, loadAllChatMetadata, saveBookmark } from './normalizedDb';
+import { saveChat, loadAllChatMetadata, saveBookmarkLegacy } from './normalizedDb';
 import { loadBookmarks as loadLegacyBookmarks } from './localStorage';
 import { performanceMonitor } from './performance';
 
@@ -171,7 +171,7 @@ export const migrateBookmarkData = async (): Promise<{ success: boolean; migrate
     
     // Migrate each bookmark
     for (const bookmark of legacyBookmarks) {
-      await saveBookmark(bookmark.id, bookmark.chatId);
+      await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
     }
     
     console.log(`Successfully migrated ${legacyBookmarks.length} bookmarks`);

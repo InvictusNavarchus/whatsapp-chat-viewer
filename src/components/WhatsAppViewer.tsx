@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
-import { parseWhatsAppChat, generateChatName } from '@/utils/chatParser';
+import { parseWhatsAppChat } from '@/utils/chatParser';
 import { saveActiveChat, loadActiveChat } from '@/utils/localStorage';
 import { useBookmarks } from '@/hooks/useBookmarks';
 import { useChats } from '@/hooks/useChats';
@@ -11,6 +11,7 @@ import { ChatViewer } from './ChatViewer';
 import { BookmarkList } from './BookmarkList';
 import { ChatListSkeleton } from './ChatListSkeleton';
 import { ChatViewerSkeleton } from './ChatViewerSkeleton';
+import { ParseProgress } from './ParseProgress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ export const WhatsAppViewer = () => {
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [scrollToMessage, setScrollToMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [parseProgress, setParseProgress] = useState(0);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const { toast } = useToast();
   
@@ -117,10 +119,18 @@ export const WhatsAppViewer = () => {
 
   const handleFileUpload = async (file: File) => {
     setIsLoading(true);
+    setParseProgress(0);
     
     try {
       const content = await file.text();
-      const messages = parseWhatsAppChat(content);
+      
+      // Parse with Web Worker and progress tracking
+      const parseResult = await parseWhatsAppChat(content, (progress, processedLines, totalLines) => {
+        setParseProgress(progress);
+        // Optional: Show detailed progress in a toast or status bar
+      });
+      
+      const { messages, chatName } = parseResult;
       
       if (messages.length === 0) {
         toast({
@@ -131,7 +141,6 @@ export const WhatsAppViewer = () => {
         return;
       }
 
-      const chatName = generateChatName(messages);
       const newChat: Chat = {
         id: `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: chatName,
@@ -158,6 +167,7 @@ export const WhatsAppViewer = () => {
       });
     } finally {
       setIsLoading(false);
+      setParseProgress(0);
     }
   };
 
@@ -414,6 +424,9 @@ export const WhatsAppViewer = () => {
           )}
         </div>
       </div>
+      
+      {/* Progress indicator for parsing */}
+      <ParseProgress progress={parseProgress} isVisible={isLoading && parseProgress > 0} />
     </div>
   );
 };

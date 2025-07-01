@@ -1,6 +1,70 @@
 import { Message } from '@/types/chat';
 
-export const parseWhatsAppChat = (content: string): Message[] => {
+interface ParseResult {
+  messages: Message[];
+  chatName: string;
+  participants: string[];
+  messageCount: number;
+}
+
+interface ParseProgressCallback {
+  (progress: number, processedLines: number, totalLines: number): void;
+}
+
+/**
+ * Parse WhatsApp chat using Web Worker for better performance
+ * @param content - The raw chat file content
+ * @param onProgress - Optional callback for progress updates
+ * @returns Promise resolving to parsed chat data
+ */
+export const parseWhatsAppChat = async (
+  content: string,
+  onProgress?: ParseProgressCallback
+): Promise<ParseResult> => {
+  return new Promise((resolve, reject) => {
+    // Create Web Worker for parsing
+    const worker = new Worker(
+      new URL('../workers/chatParser.worker.ts', import.meta.url),
+      { type: 'module' }
+    );
+    
+    worker.onmessage = (event) => {
+      const message = event.data;
+      
+      switch (message.type) {
+        case 'progress':
+          if (onProgress) {
+            onProgress(message.progress, message.processedLines, message.totalLines);
+          }
+          break;
+          
+        case 'complete':
+          worker.terminate();
+          resolve(message.result);
+          break;
+          
+        case 'error':
+          worker.terminate();
+          reject(new Error(message.error));
+          break;
+      }
+    };
+    
+    worker.onerror = (error) => {
+      worker.terminate();
+      reject(new Error(`Worker error: ${error.message}`));
+    };
+    
+    // Start parsing
+    worker.postMessage({ content });
+  });
+};
+
+/**
+ * Legacy synchronous parser for backward compatibility
+ * @deprecated Use parseWhatsAppChat instead
+ */
+export const parseWhatsAppChatSync = (content: string): Message[] => {
   const lines = content.split('\n').filter(line => line.trim());
   const messages: Message[] = [];
   
@@ -45,6 +109,10 @@ export const parseWhatsAppChat = (content: string): Message[] => {
   return messages;
 };
 
+/**
+ * Generate chat name from messages
+ * @deprecated This function is now integrated into the Web Worker parser
+ */
 export const generateChatName = (messages: Message[]): string => {
   const participants = new Set<string>();
   

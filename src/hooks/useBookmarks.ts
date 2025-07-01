@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { BookmarkedMessage } from '@/types/chat';
 import { 
   loadBookmarks, 
-  saveBookmark, 
+  saveBookmarkLegacy, 
   removeBookmark, 
   isMessageBookmarked,
   getBookmarkStatus
@@ -48,7 +48,7 @@ export const useBookmarks = () => {
             if (legacyBookmarks.length > 0) {
               // Migrate legacy bookmarks to IndexedDB
               for (const bookmark of legacyBookmarks) {
-                await saveBookmark(bookmark.id, bookmark.chatId);
+                await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
               }
               
               // Reload after migration
@@ -114,7 +114,7 @@ export const useBookmarks = () => {
       });
       
       // Save to IndexedDB
-      await saveBookmark(bookmark.id, bookmark.chatId);
+      await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
     } catch (err) {
       console.error('Failed to add bookmark:', err);
       setError('Failed to add bookmark');
