@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
 import { parseWhatsAppChat, generateChatName } from '@/utils/chatParser';
-import { saveChats, loadChats, saveBookmarks, loadBookmarks, saveActiveChat, loadActiveChat } from '@/utils/localStorage';
+import { saveBookmarks, loadBookmarks, saveActiveChat, loadActiveChat } from '@/utils/localStorage';
+import { saveChatsToIndexedDB, loadChatsFromIndexedDB, saveChatToIndexedDB } from '@/utils/indexedDb';
+import { migrateChatsFromLocalStorage, hasLegacyChatData } from '@/utils/migration';
 import { ChatUpload } from './ChatUpload';
 import { ChatList } from './ChatList';
 import { ChatViewer } from './ChatViewer';
@@ -25,13 +27,24 @@ export const WhatsAppViewer = () => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const { toast } = useToast();
 
-  // Load data from localStorage on mount
+  // Load data from storage on mount
   useEffect(() => {
     const loadInitialData = async () => {
       // Simulate loading time to show skeleton
       await new Promise(resolve => setTimeout(resolve, 800));
       
-      const savedChats = loadChats();
+      // Check for legacy data and migrate if needed
+      if (hasLegacyChatData()) {
+        const migrationSuccess = await migrateChatsFromLocalStorage();
+        if (migrationSuccess) {
+          toast({
+            title: "Data Migration Complete",
+            description: "Your chat data has been migrated to improved storage."
+          });
+        }
+      }
+      
+      const savedChats = await loadChatsFromIndexedDB();
       const savedBookmarks = loadBookmarks();
       const savedActiveChat = loadActiveChat();
       
@@ -49,12 +62,21 @@ export const WhatsAppViewer = () => {
     };
     
     loadInitialData();
-  }, []);
+  }, [toast]);
 
-  // Save to localStorage whenever data changes
+  // Save to storage whenever data changes
   useEffect(() => {
-    saveChats(chats);
-  }, [chats]);
+    if (!isInitialLoading) {
+      saveChatsToIndexedDB(chats).catch(error => {
+        console.error('Failed to save chats to IndexedDB:', error);
+        toast({
+          title: "Storage Error",
+          description: "Failed to save chats. Changes may not persist.",
+          variant: "destructive"
+        });
+      });
+    }
+  }, [chats, isInitialLoading, toast]);
 
   useEffect(() => {
     saveBookmarks(bookmarks);
@@ -116,12 +138,12 @@ export const WhatsAppViewer = () => {
     setCurrentView('chat');
   };
 
-  const handleToggleBookmark = (messageId: string) => {
+  const handleToggleBookmark = async (messageId: string) => {
     const currentChat = chats.find(c => c.id === activeChat);
     if (!currentChat) return;
 
     // Update the message in the chat
-    setChats(prev => prev.map(chat => {
+    const updatedChats = chats.map(chat => {
       if (chat.id !== activeChat) return chat;
       
       return {
@@ -131,7 +153,9 @@ export const WhatsAppViewer = () => {
           return { ...msg, isBookmarked: !msg.isBookmarked };
         })
       };
-    }));
+    });
+
+    setChats(updatedChats);
 
     // Update bookmarks
     const message = currentChat.messages.find(m => m.id === messageId);
@@ -158,17 +182,19 @@ export const WhatsAppViewer = () => {
     setCurrentView('chat');
   };
 
-  const handleRemoveBookmark = (messageId: string) => {
+  const handleRemoveBookmark = async (messageId: string) => {
     setBookmarks(prev => prev.filter(b => b.id !== messageId));
     
     // Also update the message in the chat
-    setChats(prev => prev.map(chat => ({
+    const updatedChats = chats.map(chat => ({
       ...chat,
       messages: chat.messages.map(msg => {
         if (msg.id !== messageId) return msg;
         return { ...msg, isBookmarked: false };
       })
-    })));
+    }));
+    
+    setChats(updatedChats);
   };
 
   const currentChat = chats.find(c => c.id === activeChat);
