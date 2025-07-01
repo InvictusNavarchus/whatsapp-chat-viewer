@@ -2,6 +2,9 @@ import { useRef } from 'react';
 import { Upload, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import log from 'loglevel';
+const logger = log.getLogger('chatUpload');
+logger.setLevel('debug');
 
 interface ChatUploadProps {
   onFileSelect: (file: File) => void;
@@ -12,14 +15,22 @@ export const ChatUpload = ({ onFileSelect, isLoading }: ChatUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    logger.info('📁 [COMP] handleFileSelect called');
     const file = event.target.files?.[0];
     if (file) {
       onFileSelect(file);
     }
+    logger.debug('📁 [COMP] handleFileSelect: end');
   };
 
   const handleClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleUpload = () => {
+    logger.info('📤 [COMP] handleUpload called');
+    onFileSelect(fileInputRef.current?.files?.[0] as File);
+    logger.debug('📤 [COMP] handleUpload: end');
   };
 
   return (

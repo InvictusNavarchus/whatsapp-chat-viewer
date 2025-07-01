@@ -1,98 +1,158 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Chat, Message, BookmarkedMessage } from '@/types/chat';
-import { parseWhatsAppChat, generateChatName } from '@/utils/chatParser';
-import { saveBookmarks, loadBookmarks, saveActiveChat, loadActiveChat } from '@/utils/localStorage';
-import { saveChatsToIndexedDB, loadChatsFromIndexedDB, saveChatToIndexedDB } from '@/utils/indexedDb';
-import { migrateChatsFromLocalStorage, hasLegacyChatData } from '@/utils/migration';
+import { parseWhatsAppChat } from '@/utils/chatParser';
+import { saveActiveChat, loadActiveChat } from '@/utils/localStorage';
+import { useBookmarks } from '@/hooks/useBookmarks';
+import { useChats } from '@/hooks/useChats';
 import { ChatUpload } from './ChatUpload';
 import { ChatList } from './ChatList';
 import { ChatViewer } from './ChatViewer';
 import { BookmarkList } from './BookmarkList';
 import { ChatListSkeleton } from './ChatListSkeleton';
 import { ChatViewerSkeleton } from './ChatViewerSkeleton';
+import { ParseProgress } from './ParseProgress';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('whatsappViewer');
+logger.setLevel('debug');
 
 type ViewState = 'list' | 'chat' | 'bookmarks' | 'upload';
 
 export const WhatsAppViewer = () => {
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [bookmarks, setBookmarks] = useState<BookmarkedMessage[]>([]);
   const [currentView, setCurrentView] = useState<ViewState>('list');
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [scrollToMessage, setScrollToMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [parseProgress, setParseProgress] = useState(0);
   const [loadingChatId, setLoadingChatId] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // Use the new efficient database systems
+  const { 
+    chatList,
+    isLoading: isLoadingChats,
+    isLoadingChat,
+    migrationStatus,
+    error: chatError,
+    loadChatData,
+    addChat,
+    getCachedChat,
+    clearError: clearChatError
+  } = useChats();
+  
+  const { 
+    bookmarks, 
+    addBookmark, 
+    deleteBookmark, 
+    toggleBookmark, 
+    isBookmarked: isMessageBookmarked,
+    error: bookmarkError,
+    clearError: clearBookmarkError
+  } = useBookmarks();
+  
+  // Memoize the chat list without messages for performance
+  const chatListForDisplay = useMemo(() => 
+    chatList.map(chat => ({
+      id: chat.id,
+      name: chat.name,
+      messages: [], // We don't need full messages for the list
+      createdAt: chat.createdAt,
+      lastMessageTime: chat.lastMessageTime
+    })),
+    [chatList]
+  );
 
-  // Load data from storage on mount
+  // Migration status handling
   useEffect(() => {
+    logger.debug('🔄 [COMP] useEffect: loadInitialData called');
     const loadInitialData = async () => {
-      // Simulate loading time to show skeleton
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      // Check for legacy data and migrate if needed
-      if (hasLegacyChatData()) {
-        const migrationSuccess = await migrateChatsFromLocalStorage();
-        if (migrationSuccess) {
-          toast({
-            title: "Data Migration Complete",
-            description: "Your chat data has been migrated to improved storage."
-          });
-        }
-      }
-      
-      const savedChats = await loadChatsFromIndexedDB();
-      const savedBookmarks = loadBookmarks();
+      logger.debug('🔄 [COMP] loadInitialData: start');
       const savedActiveChat = loadActiveChat();
       
-      setChats(savedChats);
-      setBookmarks(savedBookmarks);
-      
-      if (savedChats.length === 0) {
+      if (chatList.length === 0) {
+        logger.info('📂 [COMP] No chats found, switching to upload view');
         setCurrentView('upload');
-      } else if (savedActiveChat && savedChats.find(c => c.id === savedActiveChat)) {
+      } else if (savedActiveChat && chatList.find(c => c.id === savedActiveChat)) {
+        logger.info('💬 [COMP] Restoring last active chat:', savedActiveChat);
         setActiveChat(savedActiveChat);
         setCurrentView('chat');
       }
-      
-      setIsInitialLoading(false);
+      logger.debug('🔄 [COMP] loadInitialData: end');
     };
     
-    loadInitialData();
-  }, [toast]);
+    if (!isLoadingChats && !migrationStatus.isRunning) {
+      loadInitialData();
+    }
+    logger.debug('🔄 [COMP] useEffect: loadInitialData scheduled');
+  }, [chatList, isLoadingChats, migrationStatus.isRunning]);
 
-  // Save to storage whenever data changes
+  // Show migration status
   useEffect(() => {
-    if (!isInitialLoading) {
-      saveChatsToIndexedDB(chats).catch(error => {
-        console.error('Failed to save chats to IndexedDB:', error);
-        toast({
-          title: "Storage Error",
-          description: "Failed to save chats. Changes may not persist.",
-          variant: "destructive"
-        });
+    if (migrationStatus.isRunning) {
+      toast({
+        title: "Migrating Data",
+        description: "Upgrading to improved storage format...",
+      });
+    } else if (migrationStatus.isComplete && migrationStatus.error) {
+      toast({
+        title: "Migration Error",
+        description: migrationStatus.error,
+        variant: "destructive"
       });
     }
-  }, [chats, isInitialLoading, toast]);
+  }, [migrationStatus, toast]);
+
+  // Show error toasts
+  useEffect(() => {
+    if (chatError) {
+      toast({
+        title: "Chat Error", 
+        description: chatError,
+        variant: "destructive"
+      });
+    }
+  }, [chatError, toast]);
 
   useEffect(() => {
-    saveBookmarks(bookmarks);
-  }, [bookmarks]);
+    if (bookmarkError) {
+      toast({
+        title: "Bookmark Error",
+        description: bookmarkError,
+        variant: "destructive"
+      });
+    }
+  }, [bookmarkError, toast]);
 
-  useEffect(() => {
-    saveActiveChat(activeChat);
-  }, [activeChat]);
+  const handleViewChange = (view: ViewState) => {
+    logger.info('🔀 [COMP] handleViewChange called:', view);
+    setCurrentView(view);
+  };
+
+  const handleChatSelect = (chatId: string) => {
+    logger.info('💬 [COMP] handleChatSelect called:', chatId);
+    setActiveChat(chatId);
+    setCurrentView('chat');
+  };
 
   const handleFileUpload = async (file: File) => {
+    logger.info('📤 [COMP] handleFileUpload called:', file.name);
     setIsLoading(true);
+    setParseProgress(0);
     
     try {
       const content = await file.text();
-      const messages = parseWhatsAppChat(content);
+      
+      // Parse with Web Worker and progress tracking
+      const parseResult = await parseWhatsAppChat(content, (progress, processedLines, totalLines) => {
+        setParseProgress(progress);
+        // Optional: Show detailed progress in a toast or status bar
+      });
+      
+      const { messages, chatName } = parseResult;
       
       if (messages.length === 0) {
         toast({
@@ -103,7 +163,6 @@ export const WhatsAppViewer = () => {
         return;
       }
 
-      const chatName = generateChatName(messages);
       const newChat: Chat = {
         id: `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: chatName,
@@ -112,7 +171,7 @@ export const WhatsAppViewer = () => {
         lastMessageTime: messages[messages.length - 1]?.time || 'Unknown'
       };
 
-      setChats(prev => [newChat, ...prev]);
+      await addChat(newChat);
       setActiveChat(newChat.id);
       setCurrentView('chat');
       
@@ -121,8 +180,9 @@ export const WhatsAppViewer = () => {
         description: `${messages.length} messages loaded from "${chatName}"`
       });
       
+      logger.info('📥 [COMP] File parsed and chat added');
     } catch (error) {
-      console.error('Error parsing chat file:', error);
+      logger.error('❌ [COMP] handleFileUpload error:', error);
       toast({
         title: "Import failed",
         description: "Failed to parse the chat file. Please check the format.",
@@ -130,6 +190,8 @@ export const WhatsAppViewer = () => {
       });
     } finally {
       setIsLoading(false);
+      setParseProgress(0);
+      logger.debug('📤 [COMP] handleFileUpload: end');
     }
   };
 
@@ -141,81 +203,53 @@ export const WhatsAppViewer = () => {
     setLoadingChatId(chatId);
     setScrollToMessage(null);
     
-    // Add a small delay to ensure loading state is visible
-    await new Promise(resolve => setTimeout(resolve, 150));
+    // Load chat data if not already cached
+    await loadChatData(chatId);
     
     setActiveChat(chatId);
     setCurrentView('chat');
     saveActiveChat(chatId);
     
-    // Clear loading state after allowing time for rendering
-    setTimeout(() => {
-      setLoadingChatId(null);
-    }, 800);
+    // Clear loading state
+    setLoadingChatId(null);
   };
 
   const handleToggleBookmark = async (messageId: string) => {
-    const currentChat = chats.find(c => c.id === activeChat);
-    if (!currentChat) return;
+    const currentChat = getCachedChat(activeChat!);
+    if (!currentChat || !activeChat) return;
 
-    // Update the message in the chat
-    const updatedChats = chats.map(chat => {
-      if (chat.id !== activeChat) return chat;
-      
-      return {
-        ...chat,
-        messages: chat.messages.map(msg => {
-          if (msg.id !== messageId) return msg;
-          return { ...msg, isBookmarked: !msg.isBookmarked };
-        })
-      };
-    });
-
-    setChats(updatedChats);
-
-    // Update bookmarks
     const message = currentChat.messages.find(m => m.id === messageId);
     if (!message) return;
 
-    if (message.isBookmarked) {
-      // Remove bookmark
-      setBookmarks(prev => prev.filter(b => b.id !== messageId));
-    } else {
-      // Add bookmark
-      const bookmark: BookmarkedMessage = {
-        ...message,
-        isBookmarked: true,
-        chatId: currentChat.id,
-        chatName: currentChat.name
-      };
-      setBookmarks(prev => [bookmark, ...prev]);
-    }
+    // Create the bookmark object
+    const bookmark: BookmarkedMessage = {
+      ...message,
+      isBookmarked: !message.isBookmarked,
+      chatId: currentChat.id,
+      chatName: currentChat.name
+    };
+
+    // Use the efficient bookmark toggle
+    await toggleBookmark(bookmark);
   };
 
-  const handleJumpToMessage = (chatId: string, messageId: string) => {
+  const handleJumpToMessage = async (chatId: string, messageId: string) => {
+    // Load the chat if not cached
+    await loadChatData(chatId);
+    
     setActiveChat(chatId);
     setScrollToMessage(messageId);
     setCurrentView('chat');
   };
 
   const handleRemoveBookmark = async (messageId: string) => {
-    setBookmarks(prev => prev.filter(b => b.id !== messageId));
-    
-    // Also update the message in the chat
-    const updatedChats = chats.map(chat => ({
-      ...chat,
-      messages: chat.messages.map(msg => {
-        if (msg.id !== messageId) return msg;
-        return { ...msg, isBookmarked: false };
-      })
-    }));
-    
-    setChats(updatedChats);
+    // Remove the bookmark using the efficient system
+    await deleteBookmark(messageId);
   };
 
-  const currentChat = chats.find(c => c.id === activeChat);
+  const currentChat = activeChat ? getCachedChat(activeChat) : null;
 
-  if (isInitialLoading) {
+  if (isLoadingChats || migrationStatus.isRunning) {
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-6xl mx-auto">
@@ -284,7 +318,7 @@ export const WhatsAppViewer = () => {
             
             <div className="flex-1 overflow-y-auto p-4">
               <ChatList
-                chats={chats}
+                chats={chatListForDisplay}
                 activeChat={activeChat}
                 onSelectChat={handleSelectChat}
                 onViewBookmarks={() => setCurrentView('bookmarks')}
@@ -360,7 +394,7 @@ export const WhatsAppViewer = () => {
               
               <div className="flex-1 overflow-y-auto p-4">
                 <ChatList
-                  chats={chats}
+                  chats={chatListForDisplay}
                   activeChat={activeChat}
                   onSelectChat={handleSelectChat}
                   onViewBookmarks={() => setCurrentView('bookmarks')}
@@ -414,6 +448,9 @@ export const WhatsAppViewer = () => {
           )}
         </div>
       </div>
+      
+      {/* Progress indicator for parsing */}
+      <ParseProgress progress={parseProgress} isVisible={isLoading && parseProgress > 0} />
     </div>
   );
 };

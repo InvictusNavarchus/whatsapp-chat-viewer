@@ -1,9 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { Chat, Message } from '@/types/chat';
 import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
+import { getBookmarkStatus } from '@/utils/normalizedDb';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatViewer');
+logger.setLevel('debug');
 
 interface ChatViewerProps {
   chat: Chat;
@@ -22,6 +27,7 @@ export const ChatViewer = ({
 }: ChatViewerProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [bookmarkStatuses, setBookmarkStatuses] = useState<Record<string, boolean>>({});
 
   // Auto-detect current user based on most frequent sender
   const detectedCurrentUser = currentUser || (() => {
@@ -37,6 +43,44 @@ export const ChatViewer = ({
     
     return sortedSenders[0]?.[0] || '';
   })();
+
+  // Handle bookmark toggle with status refresh
+  const handleToggleBookmark = async (messageId: string) => {
+    logger.info('🔖 [COMP] handleToggleBookmark called:', messageId);
+    await onToggleBookmark(messageId);
+    logger.debug('🔖 [COMP] handleToggleBookmark: toggled, refreshing status');
+    const status = await getBookmarkStatus([messageId]);
+    setBookmarkStatuses(prev => ({
+      ...prev,
+      ...status
+    }));
+    logger.info('🔖 [COMP] handleToggleBookmark: status refreshed');
+  };
+
+  const handleBack = () => {
+    logger.info('⬅️ [COMP] handleBack called');
+    onBack();
+  };
+
+  // Load bookmark statuses for all messages
+  useEffect(() => {
+    logger.debug('🔄 [COMP] useEffect: loadBookmarkStatuses called');
+    const loadBookmarkStatuses = async () => {
+      logger.debug('🔄 [COMP] loadBookmarkStatuses: start');
+      try {
+        const messageIds = chat.messages.map(m => m.id);
+        logger.debug('🔄 [COMP] Loading bookmark statuses for', messageIds.length, 'messages');
+        const statuses = await getBookmarkStatus(messageIds);
+        setBookmarkStatuses(statuses);
+        logger.info('🔖 [COMP] Loaded bookmark statuses');
+      } catch (error) {
+        logger.error('❌ [COMP] Failed to load bookmark statuses:', error);
+      }
+      logger.debug('🔄 [COMP] loadBookmarkStatuses: end');
+    };
+    loadBookmarkStatuses();
+    logger.debug('🔄 [COMP] useEffect: loadBookmarkStatuses scheduled');
+  }, [chat.messages]);
 
   useEffect(() => {
     if (scrollToMessage) {
@@ -62,7 +106,7 @@ export const ChatViewer = ({
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={onBack}
+          onClick={handleBack}
           className="md:hidden"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -96,9 +140,12 @@ export const ChatViewer = ({
             )}
           >
             <ChatBubble
-              message={message}
+              message={{
+                ...message,
+                isBookmarked: bookmarkStatuses[message.id] || false
+              }}
               isCurrentUser={message.sender === detectedCurrentUser}
-              onToggleBookmark={onToggleBookmark}
+              onToggleBookmark={handleToggleBookmark}
             />
           </div>
         ))}

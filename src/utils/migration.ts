@@ -19,7 +19,7 @@ export const migrateChatsFromLocalStorage = async (): Promise<boolean> => {
     const chats = JSON.parse(legacyData);
     
     // Convert createdAt back to Date objects
-    const migratedChats: Chat[] = chats.map((chat: any) => ({
+    const migratedChats: Chat[] = chats.map((chat: Chat & { createdAt: string | Date }) => ({
       ...chat,
       createdAt: new Date(chat.createdAt)
     }));

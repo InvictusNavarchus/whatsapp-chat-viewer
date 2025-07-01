@@ -1,6 +1,11 @@
 import { Skeleton } from '@/components/ui/skeleton';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatListSkeleton');
+logger.setLevel('debug');
 
 export const ChatListSkeleton = () => {
+  logger.debug('🦴 [COMP] ChatListSkeleton render');
   return (
     <div className="space-y-3">
       {/* Bookmarks skeleton */}

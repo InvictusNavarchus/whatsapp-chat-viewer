@@ -3,6 +3,10 @@ import { Chat } from '@/types/chat';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatList');
+logger.setLevel('debug');
 
 interface ChatListProps {
   chats: Chat[];
@@ -21,6 +25,13 @@ export const ChatList = ({
   bookmarkCount,
   loadingChatId 
 }: ChatListProps) => {
+  logger.debug('📋 [COMP] ChatList render, chat count:', chats.length);
+
+  const handleChatSelect = (chatId: string) => {
+    logger.info('💬 [COMP] handleChatSelect called:', chatId);
+    onSelectChat(chatId);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -56,7 +67,7 @@ export const ChatList = ({
                 )}
                 onClick={() => {
                   if (!isLoading) {
-                    onSelectChat(chat.id);
+                    handleChatSelect(chat.id);
                   }
                 }}
               >
