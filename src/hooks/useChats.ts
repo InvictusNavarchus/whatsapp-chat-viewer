@@ -40,19 +40,27 @@ export const useChats = () => {
    * Initialize chat data and handle migration if needed
    */
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeChats = async () => {
       try {
+        if (!isMounted) return;
+        
         setIsLoading(true);
         setError(null);
         
         // Check if migration is needed
         const needsMigration = await needsMigrationFromOldDb();
         
+        if (!isMounted) return;
+        
         if (needsMigration) {
           console.log('Migration needed, starting migration process...');
           setMigrationStatus({ isComplete: false, isRunning: true });
           
           const migrationResult = await performFullMigration();
+          
+          if (!isMounted) return;
           
           if (migrationResult.success) {
             setMigrationStatus({ isComplete: true, isRunning: false });
@@ -70,11 +78,15 @@ export const useChats = () => {
             setError('Failed to migrate data from old format');
           }
         } else {
+          if (!isMounted) return;
           setMigrationStatus({ isComplete: true, isRunning: false });
         }
         
         // Load chat metadata (lightweight)
         const chatMetadata = await loadAllChatMetadata();
+        
+        if (!isMounted) return;
+        
         setChatList(chatMetadata.map(chat => ({
           id: chat.id,
           name: chat.name,
@@ -87,13 +99,22 @@ export const useChats = () => {
         
       } catch (err) {
         console.error('Failed to initialize chats:', err);
-        setError('Failed to load chat data');
+        if (isMounted) {
+          setError('Failed to load chat data');
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
     
     initializeChats();
+    
+    // Cleanup function to prevent state updates on unmounted component
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   /**

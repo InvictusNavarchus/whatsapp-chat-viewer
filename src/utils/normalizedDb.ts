@@ -152,6 +152,35 @@ export const saveChatMetadata = async (chat: Chat): Promise<void> => {
 };
 
 /**
+ * Validate and parse timestamp from date and time strings
+ */
+const parseTimestamp = (date: string, time: string): number => {
+  // Basic validation for date format (DD/MM/YYYY or MM/DD/YYYY or YYYY-MM-DD)
+  const dateRegex = /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$|^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/;
+  // Basic validation for time format (HH:MM or HH:MM:SS, with optional AM/PM)
+  const timeRegex = /^\d{1,2}:\d{2}(:\d{2})?(\s?(AM|PM))?$/i;
+  
+  if (!dateRegex.test(date.trim())) {
+    console.warn(`Invalid date format: ${date}`);
+    return Date.now(); // Fallback to current timestamp
+  }
+  
+  if (!timeRegex.test(time.trim())) {
+    console.warn(`Invalid time format: ${time}`);
+    return Date.now(); // Fallback to current timestamp
+  }
+  
+  const timestamp = new Date(`${date} ${time}`).getTime();
+  
+  if (isNaN(timestamp)) {
+    console.warn(`Failed to parse timestamp from date: ${date}, time: ${time}`);
+    return Date.now(); // Fallback to current timestamp
+  }
+  
+  return timestamp;
+};
+
+/**
  * Save messages for a chat
  */
 export const saveChatMessages = async (chatId: string, messages: Message[]): Promise<void> => {
@@ -162,7 +191,7 @@ export const saveChatMessages = async (chatId: string, messages: Message[]): Pro
     const transaction = database.transaction([STORES.MESSAGES], 'readwrite');
     const store = transaction.objectStore(STORES.MESSAGES);
     
-    // Convert messages to normalized format
+    // Convert messages to normalized format with validated timestamps
     const messageRecords: MessageRecord[] = messages.map(message => ({
       id: message.id,
       chatId,
@@ -171,7 +200,7 @@ export const saveChatMessages = async (chatId: string, messages: Message[]): Pro
       sender: message.sender,
       content: message.content,
       isSystemMessage: message.isSystemMessage,
-      timestamp: new Date(`${message.date} ${message.time}`).getTime()
+      timestamp: parseTimestamp(message.date, message.time)
     }));
     
     // Save all messages
@@ -458,7 +487,13 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
     return bookmarks.sort((a, b) => {
       const bookmarkA = bookmarkRecords.find(br => br.messageId === a.id);
       const bookmarkB = bookmarkRecords.find(br => br.messageId === b.id);
-      return bookmarkB!.createdAt.getTime() - bookmarkA!.createdAt.getTime();
+      
+      // Handle cases where bookmarks might not be found
+      if (!bookmarkA && !bookmarkB) return 0;
+      if (!bookmarkA) return 1; // Move to end
+      if (!bookmarkB) return -1; // Move to beginning
+      
+      return bookmarkB.createdAt.getTime() - bookmarkA.createdAt.getTime();
     });
   } catch (error) {
     console.error('Failed to load bookmarks:', error);

@@ -8,21 +8,56 @@ const STORE_NAME = 'bookmarks';
 let db: IDBDatabase | null = null;
 
 /**
+ * Check if the database connection is valid and active
+ */
+const isDatabaseValid = (): boolean => {
+  if (!db) return false;
+  
+  // Check if the database is closed
+  try {
+    // Try to access the database - this will throw if closed
+    db.objectStoreNames;
+    return true;
+  } catch (error) {
+    // Database is closed or invalid
+    db = null;
+    return false;
+  }
+};
+
+/**
  * Initialize the IndexedDB database for bookmarks
  * Creates the database with proper indexing for efficient lookups
  */
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    if (db) {
-      resolve(db);
+    // Return existing valid connection
+    if (isDatabaseValid()) {
+      resolve(db!);
       return;
     }
 
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      db = null;
+      reject(request.error);
+    };
+    
     request.onsuccess = () => {
       db = request.result;
+      
+      // Set up connection loss handlers
+      db.onclose = () => {
+        console.warn('IndexedDB connection closed unexpectedly');
+        db = null;
+      };
+      
+      db.onerror = (event) => {
+        console.error('IndexedDB connection error:', event);
+        db = null;
+      };
+      
       resolve(db);
     };
 

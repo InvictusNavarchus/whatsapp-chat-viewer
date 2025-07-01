@@ -5,17 +5,101 @@ import { loadBookmarks as loadLegacyBookmarks } from './localStorage';
 import { performanceMonitor } from './performance';
 
 /**
+ * Check if any data exists in the old database
+ */
+const hasOldData = async (): Promise<boolean> => {
+  try {
+    // Try to open the old database and check if it has any data
+    return new Promise<boolean>((resolve) => {
+      const request = indexedDB.open('WhatsAppViewerDB', 1);
+      
+      request.onerror = () => resolve(false);
+      request.onsuccess = () => {
+        const db = request.result;
+        try {
+          if (!db.objectStoreNames.contains('chats')) {
+            db.close();
+            resolve(false);
+            return;
+          }
+          
+          const transaction = db.transaction(['chats'], 'readonly');
+          const store = transaction.objectStore('chats');
+          const countRequest = store.count();
+          
+          countRequest.onsuccess = () => {
+            db.close();
+            resolve(countRequest.result > 0);
+          };
+          
+          countRequest.onerror = () => {
+            db.close();
+            resolve(false);
+          };
+        } catch (error) {
+          db.close();
+          resolve(false);
+        }
+      };
+    });
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
+ * Check if any data exists in the new database
+ */
+const hasNewData = async (): Promise<boolean> => {
+  try {
+    return new Promise<boolean>((resolve) => {
+      const request = indexedDB.open('WhatsAppViewerNormalized', 1);
+      
+      request.onerror = () => resolve(false);
+      request.onsuccess = () => {
+        const db = request.result;
+        try {
+          if (!db.objectStoreNames.contains('chats')) {
+            db.close();
+            resolve(false);
+            return;
+          }
+          
+          const transaction = db.transaction(['chats'], 'readonly');
+          const store = transaction.objectStore('chats');
+          const countRequest = store.count();
+          
+          countRequest.onsuccess = () => {
+            db.close();
+            resolve(countRequest.result > 0);
+          };
+          
+          countRequest.onerror = () => {
+            db.close();
+            resolve(false);
+          };
+        } catch (error) {
+          db.close();
+          resolve(false);
+        }
+      };
+    });
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
  * Check if the old IndexedDB structure exists
  * Returns true if migration is needed
  */
 export const needsMigrationFromOldDb = async (): Promise<boolean> => {
   try {
-    // Check if old database exists
-    const oldChats = await loadChatsFromIndexedDB();
-    const newChats = await loadAllChatMetadata();
+    // Check if old DB has data and new DB is empty
+    const [hasOld, hasNew] = await Promise.all([hasOldData(), hasNewData()]);
     
     // If old DB has data and new DB is empty, migration is needed
-    return oldChats.length > 0 && newChats.length === 0;
+    return hasOld && !hasNew;
   } catch (error) {
     console.error('Failed to check migration status:', error);
     return false;

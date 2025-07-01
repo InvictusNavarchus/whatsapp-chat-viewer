@@ -38,24 +38,37 @@ export const useBookmarks = () => {
         // Load from IndexedDB
         const indexedBookmarks = await loadBookmarks();
         
-        // If no bookmarks in IndexedDB, check for legacy data
+        // If no bookmarks in IndexedDB, check for migration status and legacy data
         if (indexedBookmarks.length === 0) {
-          const legacyBookmarks = loadLegacyBookmarks();
-          if (legacyBookmarks.length > 0) {
-            // Migrate legacy bookmarks to IndexedDB
-            for (const bookmark of legacyBookmarks) {
-              await saveBookmark(bookmark.id, bookmark.chatId);
+          const MIGRATION_FLAG = 'bookmarks_migration_completed';
+          const migrationCompleted = localStorage.getItem(MIGRATION_FLAG) === 'true';
+          
+          if (!migrationCompleted) {
+            const legacyBookmarks = loadLegacyBookmarks();
+            if (legacyBookmarks.length > 0) {
+              // Migrate legacy bookmarks to IndexedDB
+              for (const bookmark of legacyBookmarks) {
+                await saveBookmark(bookmark.id, bookmark.chatId);
+              }
+              
+              // Reload after migration
+              const migratedBookmarks = await loadBookmarks();
+              setBookmarks(migratedBookmarks);
+              
+              // Clear legacy data after successful migration
+              clearLegacyBookmarks();
+              
+              // Set migration flag to prevent future attempts
+              localStorage.setItem(MIGRATION_FLAG, 'true');
+              
+              console.log('Migrated', legacyBookmarks.length, 'bookmarks from localStorage to normalized IndexedDB');
+            } else {
+              // No legacy data found, mark migration as complete
+              localStorage.setItem(MIGRATION_FLAG, 'true');
+              setBookmarks([]);
             }
-            
-            // Reload after migration
-            const migratedBookmarks = await loadBookmarks();
-            setBookmarks(migratedBookmarks);
-            
-            // Clear legacy data after successful migration
-            clearLegacyBookmarks();
-            
-            console.log('Migrated', legacyBookmarks.length, 'bookmarks from localStorage to normalized IndexedDB');
           } else {
+            // Migration already completed, no bookmarks exist
             setBookmarks([]);
           }
         } else {

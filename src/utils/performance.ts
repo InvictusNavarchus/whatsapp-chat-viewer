@@ -9,6 +9,7 @@ interface PerformanceMetric {
 }
 
 class PerformanceMonitor {
+  private static readonly MAX_METRICS = 1000; // Maximum metrics to keep in memory
   private metrics: PerformanceMetric[] = [];
   private timers: Map<string, number> = new Map();
 
@@ -32,11 +33,20 @@ class PerformanceMonitor {
     const duration = performance.now() - startTime;
     this.timers.delete(operation);
 
-    this.metrics.push({
+    const metric: PerformanceMetric = {
       operation,
       duration,
       timestamp: Date.now()
-    });
+    };
+
+    // Add metric and implement rotation to prevent memory leaks
+    this.metrics.push(metric);
+    
+    // Rotate metrics array if it exceeds the maximum size
+    if (this.metrics.length > PerformanceMonitor.MAX_METRICS) {
+      // Remove the oldest 100 entries to avoid frequent rotations
+      this.metrics.splice(0, 100);
+    }
 
     // Log slow operations (> 100ms)
     if (duration > 100) {
@@ -92,17 +102,17 @@ class PerformanceMonitor {
 export const performanceMonitor = new PerformanceMonitor();
 
 /**
- * Decorator function to automatically time async functions
+ * Decorator function to automatically time async functions with proper typing
  */
 export function timed(operation: string) {
-  return function <T extends (...args: any[]) => Promise<any>>(
-    target: any,
-    propertyName: string,
-    descriptor: TypedPropertyDescriptor<T>
-  ) {
+  return function <TThis, TArgs extends readonly unknown[], TReturn>(
+    target: TThis,
+    propertyName: string | symbol,
+    descriptor: TypedPropertyDescriptor<(...args: TArgs) => Promise<TReturn>>
+  ): TypedPropertyDescriptor<(...args: TArgs) => Promise<TReturn>> {
     const method = descriptor.value!;
     
-    descriptor.value = (async function (this: any, ...args: any[]) {
+    descriptor.value = (async function (this: TThis, ...args: TArgs): Promise<TReturn> {
       performanceMonitor.startTimer(operation);
       try {
         const result = await method.apply(this, args);
@@ -110,6 +120,8 @@ export function timed(operation: string) {
       } finally {
         performanceMonitor.endTimer(operation);
       }
-    }) as T;
+    }) as (...args: TArgs) => Promise<TReturn>;
+
+    return descriptor;
   };
 }
