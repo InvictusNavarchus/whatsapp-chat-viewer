@@ -17,26 +17,40 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* WhatsApp-inspired green theme */
+    --primary: 142 70% 45%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 120 60% 97%;
+    --secondary-foreground: 142 70% 45%;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 142 45% 95%;
+    --accent-foreground: 142 70% 45%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 142 70% 45%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Chat-specific colors */
+    --chat-bg: 142 15% 95%;
+    --sent-bubble: 142 70% 45%;
+    --sent-bubble-foreground: 0 0% 100%;
+    --received-bubble: 0 0% 100%;
+    --received-bubble-foreground: 222.2 84% 4.9%;
+    --system-message: 215.4 16.3% 46.9%;
+    --timestamp: 215.4 16.3% 65%;
+    --bookmark-active: 45 100% 55%;
+    
+    /* Smooth transitions */
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
 

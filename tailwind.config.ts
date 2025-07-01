@@ -61,6 +61,16 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				chat: {
+					bg: 'hsl(var(--chat-bg))',
+					sent: 'hsl(var(--sent-bubble))',
+					'sent-foreground': 'hsl(var(--sent-bubble-foreground))',
+					received: 'hsl(var(--received-bubble))',
+					'received-foreground': 'hsl(var(--received-bubble-foreground))',
+					system: 'hsl(var(--system-message))',
+					timestamp: 'hsl(var(--timestamp))',
+					'bookmark-active': 'hsl(var(--bookmark-active))'
 				}
 			},
 			borderRadius: {
