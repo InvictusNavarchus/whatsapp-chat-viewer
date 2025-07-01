@@ -25,6 +25,13 @@ export const ChatList = ({
   bookmarkCount,
   loadingChatId 
 }: ChatListProps) => {
+  logger.debug('📋 [COMP] ChatList render, chat count:', chats.length);
+
+  const handleChatSelect = (chatId: string) => {
+    logger.info('💬 [COMP] handleChatSelect called:', chatId);
+    onSelectChat(chatId);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -60,7 +67,7 @@ export const ChatList = ({
                 )}
                 onClick={() => {
                   if (!isLoading) {
-                    onSelectChat(chat.id);
+                    handleChatSelect(chat.id);
                   }
                 }}
               >

@@ -16,6 +16,8 @@ interface ChatBubbleProps {
 export const ChatBubble = ({ message, isCurrentUser, onToggleBookmark }: ChatBubbleProps) => {
   const [showTimestamp, setShowTimestamp] = useState(false);
 
+  logger.debug('💬 [COMP] ChatBubble render for message:', message.id);
+
   if (message.isSystemMessage) {
     return (
       <div className="flex justify-center my-4">

@@ -34,100 +34,94 @@ export const useBookmarks = () => {
    * Also handles migration from localStorage if needed
    */
   useEffect(() => {
+    logger.debug('🔄 [HOOK] useEffect: initializeBookmarks called');
     const initializeBookmarks = async () => {
+      logger.debug('🔄 [HOOK] initializeBookmarks: start');
       try {
         setIsLoading(true);
         setError(null);
-        
-        // Load from IndexedDB
+        logger.debug('🔄 [HOOK] Loading bookmarks from IndexedDB');
         const indexedBookmarks = await loadBookmarks();
-        
-        // If no bookmarks in IndexedDB, check for migration status and legacy data
+        logger.debug('🔄 [HOOK] Loaded bookmarks:', indexedBookmarks.length);
         if (indexedBookmarks.length === 0) {
+          logger.debug('🔄 [HOOK] No bookmarks in IndexedDB, checking migration flag');
           const MIGRATION_FLAG = 'bookmarks_migration_completed';
           const migrationCompleted = localStorage.getItem(MIGRATION_FLAG) === 'true';
-          
           if (!migrationCompleted) {
+            logger.info('🕰️ [HOOK] Migrating legacy bookmarks from localStorage');
             const legacyBookmarks = loadLegacyBookmarks();
+            logger.debug('🔄 [HOOK] Legacy bookmarks found:', legacyBookmarks.length);
             if (legacyBookmarks.length > 0) {
-              // Migrate legacy bookmarks to IndexedDB
               for (const bookmark of legacyBookmarks) {
+                logger.debug('🔄 [HOOK] Migrating bookmark:', bookmark.id);
                 await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
               }
-              
-              // Reload after migration
+              logger.info('✅ [HOOK] Migration complete, reloading bookmarks');
               const migratedBookmarks = await loadBookmarks();
               setBookmarks(migratedBookmarks);
-              
-              // Clear legacy data after successful migration
               clearLegacyBookmarks();
-              
-              // Set migration flag to prevent future attempts
               localStorage.setItem(MIGRATION_FLAG, 'true');
-              
-              console.log('Migrated', legacyBookmarks.length, 'bookmarks from localStorage to normalized IndexedDB');
             } else {
-              // No legacy data found, mark migration as complete
+              logger.info('📭 [HOOK] No legacy bookmarks found, marking migration complete');
               localStorage.setItem(MIGRATION_FLAG, 'true');
               setBookmarks([]);
             }
           } else {
-            // Migration already completed, no bookmarks exist
+            logger.debug('🔄 [HOOK] Migration already completed, no bookmarks exist');
             setBookmarks([]);
           }
         } else {
+          logger.debug('🔄 [HOOK] Bookmarks found in IndexedDB, setting state');
           setBookmarks(indexedBookmarks);
         }
       } catch (err) {
         logger.error('❌ [HOOK] Failed to initialize bookmarks:', err);
         setError('Failed to load bookmarks');
-        // Fallback to localStorage
         const legacyBookmarks = loadLegacyBookmarks();
+        logger.debug('🔄 [HOOK] Fallback to legacy bookmarks:', legacyBookmarks.length);
         setBookmarks(legacyBookmarks);
       } finally {
         setIsLoading(false);
+        logger.debug('🔄 [HOOK] initializeBookmarks: end');
       }
     };
-    
     initializeBookmarks();
+    logger.debug('🔄 [HOOK] useEffect: initializeBookmarks scheduled');
   }, []);
   
   /**
    * Add a bookmark with optimistic update
    */
   const addBookmark = useCallback(async (bookmark: BookmarkedMessage) => {
+    logger.info('⭐ [HOOK] addBookmark called for message:', bookmark.id);
     const messageId = bookmark.id;
-    
-    // Prevent duplicate operations
     if (pendingOperations.current.has(messageId)) {
+      logger.debug('⏳ [HOOK] addBookmark: operation already pending for', messageId);
       return;
     }
-    
     performanceMonitor.startTimer('addBookmark');
     pendingOperations.current.add(messageId);
-    
     try {
-      // Optimistic update - update UI immediately
       setBookmarks(prev => {
-        // Check if bookmark already exists
         const exists = prev.some(b => b.id === messageId);
-        if (exists) return prev;
-        
-        // Add new bookmark at the beginning (newest first)
+        if (exists) {
+          logger.debug('⭐ [HOOK] addBookmark: already exists in state', messageId);
+          return prev;
+        }
+        logger.debug('⭐ [HOOK] addBookmark: optimistic update for', messageId);
         return [bookmark, ...prev];
       });
-      
-      // Save to IndexedDB
+      logger.debug('⭐ [HOOK] addBookmark: saving to IndexedDB', messageId);
       await saveBookmarkLegacy(bookmark.id, bookmark.chatId);
+      logger.info('⭐ [HOOK] addBookmark: saved to IndexedDB', messageId);
     } catch (err) {
       logger.error('❌ [HOOK] Failed to add bookmark:', err);
       setError('Failed to add bookmark');
-      
-      // Rollback optimistic update
       setBookmarks(prev => prev.filter(b => b.id !== messageId));
     } finally {
       performanceMonitor.endTimer('addBookmark');
       pendingOperations.current.delete(messageId);
+      logger.debug('⭐ [HOOK] addBookmark: end for', messageId);
     }
   }, []);
   
@@ -135,32 +129,28 @@ export const useBookmarks = () => {
    * Remove a bookmark with optimistic update
    */
   const deleteBookmark = useCallback(async (messageId: string) => {
-    // Prevent duplicate operations
+    logger.info('🗑️ [HOOK] deleteBookmark called for message:', messageId);
     if (pendingOperations.current.has(messageId)) {
+      logger.debug('⏳ [HOOK] deleteBookmark: operation already pending for', messageId);
       return;
     }
-    
     pendingOperations.current.add(messageId);
-    
-    // Store the removed bookmark for potential rollback
     const removedBookmark = bookmarks.find(b => b.id === messageId);
-    
     try {
-      // Optimistic update - update UI immediately
       setBookmarks(prev => prev.filter(b => b.id !== messageId));
-      
-      // Remove from IndexedDB
+      logger.debug('🗑️ [HOOK] deleteBookmark: removed from state', messageId);
       await removeBookmark(messageId);
+      logger.info('🗑️ [HOOK] deleteBookmark: removed from IndexedDB', messageId);
     } catch (err) {
       logger.error('❌ [HOOK] Failed to remove bookmark:', err);
       setError('Failed to remove bookmark');
-      
-      // Rollback optimistic update
       if (removedBookmark) {
         setBookmarks(prev => [removedBookmark, ...prev]);
+        logger.debug('🗑️ [HOOK] deleteBookmark: rollback state for', messageId);
       }
     } finally {
       pendingOperations.current.delete(messageId);
+      logger.debug('🗑️ [HOOK] deleteBookmark: end for', messageId);
     }
   }, [bookmarks]);
   
@@ -168,12 +158,15 @@ export const useBookmarks = () => {
    * Toggle bookmark status for a message
    */
   const toggleBookmark = useCallback(async (message: BookmarkedMessage) => {
+    logger.info('🔁 [HOOK] toggleBookmark called for message:', message.id);
     const isBookmarked = bookmarks.some(b => b.id === message.id);
-    
+    logger.debug('🔁 [HOOK] toggleBookmark: isBookmarked =', isBookmarked);
     if (isBookmarked) {
       await deleteBookmark(message.id);
+      logger.info('🔁 [HOOK] toggleBookmark: removed bookmark', message.id);
     } else {
       await addBookmark(message);
+      logger.info('🔁 [HOOK] toggleBookmark: added bookmark', message.id);
     }
   }, [bookmarks, addBookmark, deleteBookmark]);
   
@@ -181,30 +174,38 @@ export const useBookmarks = () => {
    * Check if a message is bookmarked (fast lookup)
    */
   const isBookmarked = useCallback((messageId: string): boolean => {
-    return bookmarks.some(b => b.id === messageId);
+    const result = bookmarks.some(b => b.id === messageId);
+    logger.debug('🔍 [HOOK] isBookmarked called for', messageId, 'result:', result);
+    return result;
   }, [bookmarks]);
   
   /**
    * Get bookmarks for a specific chat
    */
   const getBookmarksForChat = useCallback((chatId: string): BookmarkedMessage[] => {
-    return bookmarks.filter(b => b.chatId === chatId);
+    const result = bookmarks.filter(b => b.chatId === chatId);
+    logger.debug('📚 [HOOK] getBookmarksForChat called for', chatId, 'result:', result.length);
+    return result;
   }, [bookmarks]);
   
   /**
    * Refresh bookmarks from storage (useful after external changes)
    */
   const refreshBookmarks = useCallback(async () => {
+    logger.info('🔄 [HOOK] refreshBookmarks called');
     try {
       setIsLoading(true);
+      logger.debug('🔄 [HOOK] refreshBookmarks: loading from IndexedDB');
       const freshBookmarks = await loadBookmarks();
       setBookmarks(freshBookmarks);
       setError(null);
+      logger.info('🔄 [HOOK] refreshBookmarks: loaded', freshBookmarks.length, 'bookmarks');
     } catch (err) {
       logger.error('❌ [HOOK] Failed to refresh bookmarks:', err);
       setError('Failed to refresh bookmarks');
     } finally {
       setIsLoading(false);
+      logger.debug('🔄 [HOOK] refreshBookmarks: end');
     }
   }, []);
   
@@ -212,6 +213,7 @@ export const useBookmarks = () => {
    * Clear error state
    */
   const clearError = useCallback(() => {
+    logger.debug('🧹 [HOOK] clearError called');
     setError(null);
   }, []);
 

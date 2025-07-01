@@ -68,20 +68,26 @@ export const WhatsAppViewer = () => {
 
   // Migration status handling
   useEffect(() => {
+    logger.debug('🔄 [COMP] useEffect: loadInitialData called');
     const loadInitialData = async () => {
+      logger.debug('🔄 [COMP] loadInitialData: start');
       const savedActiveChat = loadActiveChat();
       
       if (chatList.length === 0) {
+        logger.info('📂 [COMP] No chats found, switching to upload view');
         setCurrentView('upload');
       } else if (savedActiveChat && chatList.find(c => c.id === savedActiveChat)) {
+        logger.info('💬 [COMP] Restoring last active chat:', savedActiveChat);
         setActiveChat(savedActiveChat);
         setCurrentView('chat');
       }
+      logger.debug('🔄 [COMP] loadInitialData: end');
     };
     
     if (!isLoadingChats && !migrationStatus.isRunning) {
       loadInitialData();
     }
+    logger.debug('🔄 [COMP] useEffect: loadInitialData scheduled');
   }, [chatList, isLoadingChats, migrationStatus.isRunning]);
 
   // Show migration status
@@ -121,7 +127,19 @@ export const WhatsAppViewer = () => {
     }
   }, [bookmarkError, toast]);
 
+  const handleViewChange = (view: ViewState) => {
+    logger.info('🔀 [COMP] handleViewChange called:', view);
+    setCurrentView(view);
+  };
+
+  const handleChatSelect = (chatId: string) => {
+    logger.info('💬 [COMP] handleChatSelect called:', chatId);
+    setActiveChat(chatId);
+    setCurrentView('chat');
+  };
+
   const handleFileUpload = async (file: File) => {
+    logger.info('📤 [COMP] handleFileUpload called:', file.name);
     setIsLoading(true);
     setParseProgress(0);
     
@@ -162,8 +180,9 @@ export const WhatsAppViewer = () => {
         description: `${messages.length} messages loaded from "${chatName}"`
       });
       
+      logger.info('📥 [COMP] File parsed and chat added');
     } catch (error) {
-      console.error('Error parsing chat file:', error);
+      logger.error('❌ [COMP] handleFileUpload error:', error);
       toast({
         title: "Import failed",
         description: "Failed to parse the chat file. Please check the format.",
@@ -172,6 +191,7 @@ export const WhatsAppViewer = () => {
     } finally {
       setIsLoading(false);
       setParseProgress(0);
+      logger.debug('📤 [COMP] handleFileUpload: end');
     }
   };
 

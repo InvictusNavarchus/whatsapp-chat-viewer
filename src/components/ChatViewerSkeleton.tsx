@@ -5,6 +5,8 @@ const logger = log.getLogger('chatViewerSkeleton');
 logger.setLevel('debug');
 
 export const ChatViewerSkeleton = () => {
+  logger.debug('🦴 [COMP] ChatViewerSkeleton render');
+
   return (
     <div className="h-full flex flex-col">
       {/* Header skeleton */}

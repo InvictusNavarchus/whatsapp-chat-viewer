@@ -6,6 +6,8 @@ import log from 'loglevel';
 const logger = log.getLogger('performance');
 logger.setLevel('debug');
 
+logger.debug('⏱️ [UTIL] performance module loaded');
+
 interface PerformanceMetric {
   operation: string;
   duration: number;

@@ -3,6 +3,9 @@ import { BookmarkedMessage } from '@/types/chat';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+const logger = log.getLogger('bookmarkList');
+logger.setLevel('debug');
 
 interface BookmarkListProps {
   bookmarks: BookmarkedMessage[];
@@ -17,6 +20,18 @@ export const BookmarkList = ({
   onJumpToMessage,
   onRemoveBookmark 
 }: BookmarkListProps) => {
+  logger.debug('🔖 [COMP] BookmarkList render, bookmark count:', bookmarks.length);
+
+  const handleBookmarkSelect = (messageId: string) => {
+    logger.info('🔖 [COMP] handleBookmarkSelect called:', messageId);
+    onJumpToMessage(bookmarks.find(b => b.id === messageId)?.chatId || '', messageId);
+  };
+
+  const handleRemoveBookmark = (messageId: string) => {
+    logger.info('🗑️ [COMP] handleRemoveBookmark called:', messageId);
+    onRemoveBookmark(messageId);
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -57,7 +72,7 @@ export const BookmarkList = ({
             <Card 
               key={bookmark.id}
               className="p-4 cursor-pointer transition-all duration-200 hover:shadow-md border hover:border-primary/50"
-              onClick={() => onJumpToMessage(bookmark.chatId, bookmark.id)}
+              onClick={() => handleBookmarkSelect(bookmark.id)}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -85,7 +100,7 @@ export const BookmarkList = ({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onRemoveBookmark(bookmark.id);
+                    handleRemoveBookmark(bookmark.id);
                   }}
                   className="text-chat-bookmark-active hover:text-destructive flex-shrink-0"
                 >

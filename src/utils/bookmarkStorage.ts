@@ -11,6 +11,8 @@ const STORE_NAME = 'bookmarks';
 
 let db: IDBDatabase | null = null;
 
+logger.debug('🔖 [UTIL] bookmarkStorage module loaded');
+
 /**
  * Check if the database connection is valid and active
  */
@@ -86,6 +88,7 @@ const initDB = (): Promise<IDBDatabase> => {
  * Uses upsert operation for efficiency
  */
 export const saveBookmark = async (bookmark: BookmarkedMessage): Promise<void> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Saving bookmark');
   performanceMonitor.startTimer('saveBookmark');
   
   try {
@@ -103,6 +106,7 @@ export const saveBookmark = async (bookmark: BookmarkedMessage): Promise<void> =
     throw error;
   } finally {
     performanceMonitor.endTimer('saveBookmark');
+    logger.debug('🔖 [BOOKMARK STORAGE] Bookmark saved');
   }
 };
 
@@ -110,6 +114,7 @@ export const saveBookmark = async (bookmark: BookmarkedMessage): Promise<void> =
  * Remove a bookmark from IndexedDB by message ID
  */
 export const removeBookmark = async (messageId: string): Promise<void> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Removing bookmark');
   try {
     const database = await initDB();
     const transaction = database.transaction([STORE_NAME], 'readwrite');
@@ -131,6 +136,7 @@ export const removeBookmark = async (messageId: string): Promise<void> => {
  * Returns bookmarks sorted by date/time (newest first)
  */
 export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Loading bookmarks');
   performanceMonitor.startTimer('loadBookmarks');
   
   try {
@@ -156,6 +162,7 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
     return [];
   } finally {
     performanceMonitor.endTimer('loadBookmarks');
+    logger.debug('🔖 [BOOKMARK STORAGE] Bookmarks loaded');
   }
 };
 
@@ -164,6 +171,7 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
  * Much faster than array.find() for large datasets
  */
 export const isMessageBookmarked = async (messageId: string): Promise<boolean> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Checking bookmark status');
   try {
     const database = await initDB();
     const transaction = database.transaction([STORE_NAME], 'readonly');
@@ -184,6 +192,7 @@ export const isMessageBookmarked = async (messageId: string): Promise<boolean> =
  * Get bookmarks for a specific chat using indexed lookup
  */
 export const getBookmarksByChat = async (chatId: string): Promise<BookmarkedMessage[]> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Getting bookmarks by chat');
   try {
     const database = await initDB();
     const transaction = database.transaction([STORE_NAME], 'readonly');
@@ -212,6 +221,7 @@ export const getBookmarksByChat = async (chatId: string): Promise<BookmarkedMess
  * Clear all bookmarks (for cleanup/reset)
  */
 export const clearAllBookmarks = async (): Promise<void> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Clearing all bookmarks');
   try {
     const database = await initDB();
     const transaction = database.transaction([STORE_NAME], 'readwrite');
@@ -233,6 +243,7 @@ export const clearAllBookmarks = async (): Promise<void> => {
  * Useful for migrations or bulk operations
  */
 export const saveBookmarksBatch = async (bookmarks: BookmarkedMessage[]): Promise<void> => {
+  logger.debug('🔖 [BOOKMARK STORAGE] Saving bookmarks batch');
   try {
     const database = await initDB();
     const transaction = database.transaction([STORE_NAME], 'readwrite');

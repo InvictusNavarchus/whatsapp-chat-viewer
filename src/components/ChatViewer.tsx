@@ -5,6 +5,10 @@ import { ChatBubble } from './ChatBubble';
 import { Button } from '@/components/ui/button';
 import { getBookmarkStatus } from '@/utils/normalizedDb';
 import { cn } from '@/lib/utils';
+import log from 'loglevel';
+
+const logger = log.getLogger('chatViewer');
+logger.setLevel('debug');
 
 interface ChatViewerProps {
   chat: Chat;
@@ -42,30 +46,40 @@ export const ChatViewer = ({
 
   // Handle bookmark toggle with status refresh
   const handleToggleBookmark = async (messageId: string) => {
+    logger.info('🔖 [COMP] handleToggleBookmark called:', messageId);
     await onToggleBookmark(messageId);
-    
-    // Refresh bookmark status for this message
+    logger.debug('🔖 [COMP] handleToggleBookmark: toggled, refreshing status');
     const status = await getBookmarkStatus([messageId]);
     setBookmarkStatuses(prev => ({
       ...prev,
       ...status
     }));
+    logger.info('🔖 [COMP] handleToggleBookmark: status refreshed');
+  };
+
+  const handleBack = () => {
+    logger.info('⬅️ [COMP] handleBack called');
+    onBack();
   };
 
   // Load bookmark statuses for all messages
   useEffect(() => {
+    logger.debug('🔄 [COMP] useEffect: loadBookmarkStatuses called');
     const loadBookmarkStatuses = async () => {
+      logger.debug('🔄 [COMP] loadBookmarkStatuses: start');
       try {
-        // Consider loading in batches for large chats
         const messageIds = chat.messages.map(m => m.id);
+        logger.debug('🔄 [COMP] Loading bookmark statuses for', messageIds.length, 'messages');
         const statuses = await getBookmarkStatus(messageIds);
         setBookmarkStatuses(statuses);
+        logger.info('🔖 [COMP] Loaded bookmark statuses');
       } catch (error) {
-        console.error('Failed to load bookmark statuses:', error);
+        logger.error('❌ [COMP] Failed to load bookmark statuses:', error);
       }
+      logger.debug('🔄 [COMP] loadBookmarkStatuses: end');
     };
-    
     loadBookmarkStatuses();
+    logger.debug('🔄 [COMP] useEffect: loadBookmarkStatuses scheduled');
   }, [chat.messages]);
 
   useEffect(() => {
@@ -92,7 +106,7 @@ export const ChatViewer = ({
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={onBack}
+          onClick={handleBack}
           className="md:hidden"
         >
           <ArrowLeft className="h-4 w-4" />

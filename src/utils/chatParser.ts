@@ -4,6 +4,8 @@ import log from 'loglevel';
 const logger = log.getLogger('chatParser');
 logger.setLevel('debug');
 
+logger.debug('📝 [UTIL] chatParser module loaded');
+
 interface ParseResult {
   messages: Message[];
   chatName: string;
@@ -25,6 +27,7 @@ export const parseWhatsAppChat = async (
   content: string,
   onProgress?: ParseProgressCallback
 ): Promise<ParseResult> => {
+  logger.debug('📝 [UTIL] parseWhatsAppChat: start');
   logger.info('Starting parseWhatsAppChat');
   return new Promise((resolve, reject) => {
     // Create Web Worker for parsing
@@ -46,6 +49,7 @@ export const parseWhatsAppChat = async (
         case 'complete':
           worker.terminate();
           logger.info('parseWhatsAppChat completed');
+          logger.debug('📝 [UTIL] parseWhatsAppChat: end');
           resolve(message.result);
           break;
           
@@ -73,6 +77,7 @@ export const parseWhatsAppChat = async (
  * @deprecated Use parseWhatsAppChat instead
  */
 export const parseWhatsAppChatSync = (content: string): Message[] => {
+  logger.debug('📝 [UTIL] parseWhatsAppChatSync: start');
   logger.info('Starting parseWhatsAppChatSync');
   const lines = content.split('\n').filter(line => line.trim());
   const messages: Message[] = [];
@@ -116,6 +121,7 @@ export const parseWhatsAppChatSync = (content: string): Message[] => {
   }
   
   logger.info(`parseWhatsAppChatSync completed. ${messages.length} messages parsed`);
+  logger.debug('📝 [UTIL] parseWhatsAppChatSync: end');
   return messages;
 };
 

@@ -65,8 +65,10 @@ let db: IDBDatabase | null = null;
  * Creates separate stores for chats, messages, bookmarks, and metadata
  */
 const initNormalizedDB = (): Promise<IDBDatabase> => {
+  logger.debug('💾 [UTIL] initNormalizedDB function called');
   return new Promise((resolve, reject) => {
     if (db) {
+      logger.debug('💾 [UTIL] db already exists');
       resolve(db);
       return;
     }
@@ -76,6 +78,7 @@ const initNormalizedDB = (): Promise<IDBDatabase> => {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       db = request.result;
+      logger.debug('💾 [UTIL] db initialized');
       resolve(db);
     };
 
@@ -145,6 +148,7 @@ const initNormalizedDB = (): Promise<IDBDatabase> => {
  * Save a chat's metadata (without messages)
  */
 export const saveChatMetadata = async (chat: Chat): Promise<void> => {
+  logger.debug('💾 [UTIL] saveChatMetadata function called');
   performanceMonitor.startTimer('saveChatMetadata');
   
   try {
@@ -179,6 +183,7 @@ export const saveChatMetadata = async (chat: Chat): Promise<void> => {
     throw error;
   } finally {
     performanceMonitor.endTimer('saveChatMetadata');
+    logger.debug('💾 [UTIL] saveChatMetadata function completed');
   }
 };
 
@@ -215,6 +220,7 @@ const parseTimestamp = (date: string, time: string): number => {
  * Save messages for a chat
  */
 export const saveChatMessages = async (chatId: string, messages: Message[]): Promise<void> => {
+  logger.debug('💾 [UTIL] saveChatMessages function called');
   performanceMonitor.startTimer('saveChatMessages');
   
   try {
@@ -249,6 +255,7 @@ export const saveChatMessages = async (chatId: string, messages: Message[]): Pro
     throw error;
   } finally {
     performanceMonitor.endTimer('saveChatMessages');
+    logger.debug('💾 [UTIL] saveChatMessages function completed');
   }
 };
 
@@ -256,6 +263,7 @@ export const saveChatMessages = async (chatId: string, messages: Message[]): Pro
  * Save a complete chat (metadata + messages)
  */
 export const saveChat = async (chat: Chat): Promise<void> => {
+  logger.debug('💾 [UTIL] saveChat function called');
   performanceMonitor.startTimer('saveChat');
   
   try {
@@ -269,6 +277,7 @@ export const saveChat = async (chat: Chat): Promise<void> => {
     throw error;
   } finally {
     performanceMonitor.endTimer('saveChat');
+    logger.debug('💾 [UTIL] saveChat function completed');
   }
 };
 
@@ -276,6 +285,7 @@ export const saveChat = async (chat: Chat): Promise<void> => {
  * Load chat metadata (without messages)
  */
 export const loadChatMetadata = async (chatId: string): Promise<ChatRecord | null> => {
+  logger.debug('💾 [UTIL] loadChatMetadata function called');
   performanceMonitor.startTimer('loadChatMetadata');
   
   try {
@@ -296,6 +306,7 @@ export const loadChatMetadata = async (chatId: string): Promise<ChatRecord | nul
     return null;
   } finally {
     performanceMonitor.endTimer('loadChatMetadata');
+    logger.debug('💾 [UTIL] loadChatMetadata function completed');
   }
 };
 
@@ -303,6 +314,7 @@ export const loadChatMetadata = async (chatId: string): Promise<ChatRecord | nul
  * Load all chat metadata (for chat list)
  */
 export const loadAllChatMetadata = async (): Promise<ChatRecord[]> => {
+  logger.debug('💾 [UTIL] loadAllChatMetadata function called');
   performanceMonitor.startTimer('loadAllChatMetadata');
   
   try {
@@ -326,6 +338,7 @@ export const loadAllChatMetadata = async (): Promise<ChatRecord[]> => {
     return [];
   } finally {
     performanceMonitor.endTimer('loadAllChatMetadata');
+    logger.debug('💾 [UTIL] loadAllChatMetadata function completed');
   }
 };
 
@@ -337,6 +350,7 @@ export const loadChatMessages = async (
   limit?: number, 
   offset?: number
 ): Promise<Message[]> => {
+  logger.debug('💾 [UTIL] loadChatMessages function called');
   performanceMonitor.startTimer('loadChatMessages');
   
   try {
@@ -377,6 +391,7 @@ export const loadChatMessages = async (
     return [];
   } finally {
     performanceMonitor.endTimer('loadChatMessages');
+    logger.debug('💾 [UTIL] loadChatMessages function completed');
   }
 };
 
@@ -384,6 +399,7 @@ export const loadChatMessages = async (
  * Load a complete chat (metadata + messages)
  */
 export const loadChat = async (chatId: string): Promise<Chat | null> => {
+  logger.debug('💾 [UTIL] loadChat function called');
   performanceMonitor.startTimer('loadChat');
   
   try {
@@ -406,6 +422,7 @@ export const loadChat = async (chatId: string): Promise<Chat | null> => {
     return null;
   } finally {
     performanceMonitor.endTimer('loadChat');
+    logger.debug('💾 [UTIL] loadChat function completed');
   }
 };
 
@@ -424,6 +441,7 @@ export const saveBookmark = async (
   },
   chatName: string
 ): Promise<void> => {
+  logger.debug('💾 [UTIL] saveBookmark function called');
   performanceMonitor.startTimer('saveBookmark');
   
   try {
@@ -453,6 +471,7 @@ export const saveBookmark = async (
     throw error;
   } finally {
     performanceMonitor.endTimer('saveBookmark');
+    logger.debug('💾 [UTIL] saveBookmark function completed');
   }
 };
 
@@ -460,6 +479,7 @@ export const saveBookmark = async (
  * Remove a bookmark
  */
 export const removeBookmark = async (messageId: string): Promise<void> => {
+  logger.debug('💾 [UTIL] removeBookmark function called');
   performanceMonitor.startTimer('removeBookmark');
   
   try {
@@ -477,6 +497,7 @@ export const removeBookmark = async (messageId: string): Promise<void> => {
     throw error;
   } finally {
     performanceMonitor.endTimer('removeBookmark');
+    logger.debug('💾 [UTIL] removeBookmark function completed');
   }
 };
 
@@ -484,6 +505,7 @@ export const removeBookmark = async (messageId: string): Promise<void> => {
  * Load all bookmarks with denormalized data (fast, single query)
  */
 export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
+  logger.debug('💾 [UTIL] loadBookmarks function called');
   performanceMonitor.startTimer('loadBookmarks');
   
   try {
@@ -529,6 +551,7 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
     return [];
   } finally {
     performanceMonitor.endTimer('loadBookmarks');
+    logger.debug('💾 [UTIL] loadBookmarks function completed');
   }
 };
 
@@ -536,6 +559,7 @@ export const loadBookmarks = async (): Promise<BookmarkedMessage[]> => {
  * Check if a message is bookmarked
  */
 export const isMessageBookmarked = async (messageId: string): Promise<boolean> => {
+  logger.debug('💾 [UTIL] isMessageBookmarked function called');
   performanceMonitor.startTimer('isMessageBookmarked');
   
   try {
@@ -553,6 +577,7 @@ export const isMessageBookmarked = async (messageId: string): Promise<boolean> =
     return false;
   } finally {
     performanceMonitor.endTimer('isMessageBookmarked');
+    logger.debug('💾 [UTIL] isMessageBookmarked function completed');
   }
 };
 
@@ -560,6 +585,7 @@ export const isMessageBookmarked = async (messageId: string): Promise<boolean> =
  * Get bookmark status for multiple messages at once
  */
 export const getBookmarkStatus = async (messageIds: string[]): Promise<Record<string, boolean>> => {
+  logger.debug('💾 [UTIL] getBookmarkStatus function called');
   performanceMonitor.startTimer('getBookmarkStatus');
   
   try {
@@ -584,6 +610,7 @@ export const getBookmarkStatus = async (messageIds: string[]): Promise<Record<st
     return {};
   } finally {
     performanceMonitor.endTimer('getBookmarkStatus');
+    logger.debug('💾 [UTIL] getBookmarkStatus function completed');
   }
 };
 
@@ -591,6 +618,7 @@ export const getBookmarkStatus = async (messageIds: string[]): Promise<Record<st
  * Delete a chat and all its messages
  */
 export const deleteChat = async (chatId: string): Promise<void> => {
+  logger.debug('💾 [UTIL] deleteChat function called');
   performanceMonitor.startTimer('deleteChat');
   
   try {
@@ -645,6 +673,7 @@ export const deleteChat = async (chatId: string): Promise<void> => {
     throw error;
   } finally {
     performanceMonitor.endTimer('deleteChat');
+    logger.debug('💾 [UTIL] deleteChat function completed');
   }
 };
 
@@ -664,6 +693,7 @@ export const getMessageAndChatForBookmark = async (
   };
   chatName: string;
 } | null> => {
+  logger.debug('💾 [UTIL] getMessageAndChatForBookmark function called');
   try {
     const database = await initNormalizedDB();
     const transaction = database.transaction([STORES.MESSAGES, STORES.CHATS], 'readonly');
@@ -700,6 +730,8 @@ export const getMessageAndChatForBookmark = async (
   } catch (error) {
     logger.error('💾 [DB] Failed to get message and chat data:', error);
     return null;
+  } finally {
+    logger.debug('💾 [UTIL] getMessageAndChatForBookmark function completed');
   }
 };
 
@@ -717,3 +749,5 @@ export const saveBookmarkLegacy = async (messageId: string, chatId: string): Pro
 
 // Export types for use in other files
 export type { ChatRecord, MessageRecord, BookmarkRecord, MetadataRecord };
+
+logger.debug('💾 [UTIL] normalizedDb module loaded');

@@ -1,9 +1,13 @@
 import * as React from "react"
+import log from 'loglevel';
 
 import type {
   ToastActionElement,
   ToastProps,
 } from "@/components/ui/toast"
+
+const logger = log.getLogger('useToast');
+logger.setLevel('debug');
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -131,15 +135,18 @@ const listeners: Array<(state: State) => void> = []
 let memoryState: State = { toasts: [] }
 
 function dispatch(action: Action) {
+  logger.debug('🍞 [HOOK] dispatch called:', action.type, action);
   memoryState = reducer(memoryState, action)
   listeners.forEach((listener) => {
     listener(memoryState)
   })
+  logger.debug('🍞 [HOOK] dispatch: state after dispatch', memoryState);
 }
 
 type Toast = Omit<ToasterToast, "id">
 
 function toast({ ...props }: Toast) {
+  logger.info('🍞 [HOOK] toast called:', props);
   const id = genId()
 
   const update = (props: ToasterToast) =>

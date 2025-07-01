@@ -1,5 +1,6 @@
 import { Progress } from '@/components/ui/progress';
 import log from 'loglevel';
+import { useEffect } from 'react';
 
 const logger = log.getLogger('parseProgress');
 logger.setLevel('debug');
@@ -14,6 +15,11 @@ interface ParseProgressProps {
  */
 export const ParseProgress = ({ progress, isVisible }: ParseProgressProps) => {
   if (!isVisible) return null;
+
+  logger.debug('⏳ [COMP] ParseProgress render, progress:', progress);
+  useEffect(() => {
+    logger.debug('⏳ [COMP] ParseProgress progress updated:', progress);
+  }, [progress]);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

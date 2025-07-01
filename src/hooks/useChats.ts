@@ -44,9 +44,10 @@ export const useChats = () => {
    * Initialize chat data and handle migration if needed
    */
   useEffect(() => {
+    logger.debug('🔄 [HOOK] useEffect: initializeChats called');
     let isMounted = true;
-    
     const initializeChats = async () => {
+      logger.debug('🔄 [HOOK] initializeChats: start');
       try {
         if (!isMounted) return;
         
@@ -54,32 +55,39 @@ export const useChats = () => {
         setError(null);
         
         // Check if migration is needed
+        logger.debug('🔄 [HOOK] Checking migration status');
         const needsMigration = await needsMigrationFromOldDb();
+        logger.debug('🔄 [HOOK] needsMigration =', needsMigration);
         
         if (!isMounted) return;
         
         if (needsMigration) {
-          logger.info('Migration needed, starting migration process...');
+          logger.info('🕰️ [HOOK] Migration needed, starting migration process...');
           setMigrationStatus({ isComplete: false, isRunning: true });
           
-          const migrationResult = await performFullMigration();
-          
-          if (!isMounted) return;
-          
-          if (migrationResult.success) {
-            setMigrationStatus({ isComplete: true, isRunning: false });
+          try {
+            const migrationResult = await performFullMigration();
             
-            // Clean up old database in background
-            cleanupOldDatabase().catch(console.error);
+            if (!isMounted) return;
             
-            logger.info('Migration completed:', migrationResult);
-          } else {
-            setMigrationStatus({ 
-              isComplete: false, 
-              isRunning: false, 
-              error: 'Migration failed' 
-            });
-            setError('Failed to migrate data from old format');
+            if (migrationResult.success) {
+              setMigrationStatus({ isComplete: true, isRunning: false });
+              
+              // Clean up old database in background
+              cleanupOldDatabase().catch(e => logger.error('❌ [HOOK] Failed to cleanup old DB:', e));
+              
+              logger.info('✅ [HOOK] Migration completed:', migrationResult);
+            } else {
+              setMigrationStatus({ 
+                isComplete: false, 
+                isRunning: false, 
+                error: 'Migration completed with errors' 
+              });
+              setError('Failed to migrate data from old format');
+            }
+          } catch (migrationError) {
+            logger.error('❌ [HOOK] Migration failed:', migrationError);
+            setMigrationStatus({ isComplete: true, isRunning: false, error: 'Migration failed' });
           }
         } else {
           if (!isMounted) return;
@@ -87,6 +95,7 @@ export const useChats = () => {
         }
         
         // Load chat metadata (lightweight)
+        logger.debug('🔄 [HOOK] Loading chat list from DB');
         const chatMetadata = await loadAllChatMetadata();
         
         if (!isMounted) return;
@@ -101,8 +110,9 @@ export const useChats = () => {
           participants: chat.participants
         })));
         
+        logger.info('📥 [HOOK] Loaded chat list:', chatMetadata.length);
       } catch (err) {
-        logger.error('Failed to initialize chats:', err);
+        logger.error('❌ [HOOK] Failed to initialize chats:', err);
         if (isMounted) {
           setError('Failed to load chat data');
         }
@@ -110,6 +120,7 @@ export const useChats = () => {
         if (isMounted) {
           setIsLoading(false);
         }
+        logger.debug('🔄 [HOOK] initializeChats: end');
       }
     };
     
@@ -118,6 +129,7 @@ export const useChats = () => {
     // Cleanup function to prevent state updates on unmounted component
     return () => {
       isMounted = false;
+      logger.debug('🔄 [HOOK] useEffect: cleanup, isMounted = false');
     };
   }, []);
 
@@ -125,8 +137,10 @@ export const useChats = () => {
    * Load a specific chat with full message data (lazy loading)
    */
   const loadChatData = useCallback(async (chatId: string): Promise<Chat | null> => {
+    logger.info('💬 [HOOK] loadChatData called for chat:', chatId);
     // Return cached chat if available
     if (loadedChats.has(chatId)) {
+      logger.debug('💬 [HOOK] loadChatData: returning cached chat', chatId);
       return loadedChats.get(chatId)!;
     }
 
@@ -134,21 +148,24 @@ export const useChats = () => {
     performanceMonitor.startTimer(`loadChatData_${chatId}`);
 
     try {
+      logger.debug('💬 [HOOK] loadChatData: loading from DB', chatId);
       const chat = await loadChat(chatId);
       
       if (chat) {
         // Cache the loaded chat
         setLoadedChats(prev => new Map(prev).set(chatId, chat));
+        logger.info('💬 [HOOK] loadChatData: loaded and cached', chatId);
       }
       
       return chat;
     } catch (err) {
-      logger.error(`Failed to load chat ${chatId}:`, err);
+      logger.error(`❌ [HOOK] Failed to load chat ${chatId}:`, err);
       setError(`Failed to load chat: ${chatId}`);
       return null;
     } finally {
       setIsLoadingChat(null);
       performanceMonitor.endTimer(`loadChatData_${chatId}`);
+      logger.debug('💬 [HOOK] loadChatData: end for', chatId);
     }
   }, [loadedChats]);
 
@@ -156,9 +173,11 @@ export const useChats = () => {
    * Add a new chat
    */
   const addChat = useCallback(async (chat: Chat): Promise<void> => {
+    logger.info('➕ [HOOK] addChat called for chat:', chat.id);
     performanceMonitor.startTimer('addChat');
     
     try {
+      logger.debug('➕ [HOOK] addChat: saving to DB', chat.id);
       // Save to database
       await saveChat(chat);
       
@@ -174,18 +193,21 @@ export const useChats = () => {
           participants: [...new Set(chat.messages.filter(m => !m.isSystemMessage).map(m => m.sender))]
         };
         
+        logger.debug('➕ [HOOK] addChat: updating chatList state', newItem);
         return [newItem, ...prev];
       });
       
       // Cache the chat
       setLoadedChats(prev => new Map(prev).set(chat.id, chat));
+      logger.info('➕ [HOOK] addChat: added and cached', chat.id);
       
     } catch (err) {
-      logger.error('Failed to add chat:', err);
+      logger.error('❌ [HOOK] Failed to add chat:', err);
       setError('Failed to save chat');
       throw err;
     } finally {
       performanceMonitor.endTimer('addChat');
+      logger.debug('➕ [HOOK] addChat: end for', chat.id);
     }
   }, []);
 
@@ -193,9 +215,11 @@ export const useChats = () => {
    * Delete a chat
    */
   const removeChat = useCallback(async (chatId: string): Promise<void> => {
+    logger.info('🗑️ [HOOK] removeChat called for chat:', chatId);
     performanceMonitor.startTimer('removeChat');
     
     try {
+      logger.debug('🗑️ [HOOK] removeChat: deleting from DB', chatId);
       // Delete from database
       await deleteChat(chatId);
       
@@ -206,15 +230,18 @@ export const useChats = () => {
       setLoadedChats(prev => {
         const newMap = new Map(prev);
         newMap.delete(chatId);
+        logger.debug('🗑️ [HOOK] removeChat: removed from cache', chatId);
         return newMap;
       });
       
+      logger.info('🗑️ [HOOK] removeChat: deleted', chatId);
     } catch (err) {
-      logger.error('Failed to delete chat:', err);
+      logger.error('❌ [HOOK] Failed to delete chat:', err);
       setError('Failed to delete chat');
       throw err;
     } finally {
       performanceMonitor.endTimer('removeChat');
+      logger.debug('🗑️ [HOOK] removeChat: end for', chatId);
     }
   }, []);
 
@@ -222,7 +249,9 @@ export const useChats = () => {
    * Get a chat from cache (synchronous)
    */
   const getCachedChat = useCallback((chatId: string): Chat | null => {
-    return loadedChats.get(chatId) || null;
+    const result = loadedChats.get(chatId) || null;
+    logger.debug('💾 [HOOK] getCachedChat called for', chatId, 'result:', !!result);
+    return result;
   }, [loadedChats]);
 
   /**
